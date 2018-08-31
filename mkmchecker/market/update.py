@@ -71,8 +71,6 @@ class Requester(object):
 
 	@classmethod
 	def api_request(cls, resource: str) -> t.Any:
-		print('requesting', resource)
-
 		t_params = {
 			'oauth_consumer_key': cls.APP_TOKEN,
 			'oauth_nonce': cls._get_nonce(),
@@ -92,12 +90,15 @@ class Requester(object):
 
 		header = {'Authorization': Requester._oauth_header_from_dict(t_params)}
 
-		response = requests.get(uri, headers=header)
+		while True:
+			try:
+				response = requests.get(uri, headers=header)
+				break
+			except requests.ConnectionError as e:
+				print(e)
 
 		if not response.ok:
 			raise Exception(response.status_code)
-
-		print('request done', response, response.json())
 
 		return response.json()
 

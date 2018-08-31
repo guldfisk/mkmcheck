@@ -7,6 +7,7 @@ from mtgorp.models.persistent.attributes.borders import Border
 
 from mkmchecker.market.load import MarketLoader
 from mkmchecker.wishload.fetch import WishFetcher
+from mkmchecker.wishload.load import WishListLoader
 from mkmchecker.evaluation.evaluate import Evaluator, StandardWishingStrategy, EvaluationPersistor
 from mkmchecker.updatesheet import update
 
@@ -22,7 +23,7 @@ class Timer(object):
 		return v
 
 
-def check():
+def full_check():
 
 	timer = Timer()
 	timer.middle_time()
@@ -30,47 +31,31 @@ def check():
 	db_loader = DbLoader()
 	db = db_loader.load()
 
-	evaluation_persistor = EvaluationPersistor(db)
-
 	print('db loaded', timer.middle_time())
 
-	wish_fetcher = WishFetcher(db)
-	wish_list = wish_fetcher.fetch()
+	wish_loader = WishListLoader(db)
+
+	if wish_loader.check_and_update():
+		print('wish list updated')
+
+	wish_list = wish_loader.load()
 
 	print('wishes fetched', timer.middle_time())
 
-	# cardboard = db.cardboards['The Rack']
-	# wish = SingleCardboardWish(cardboard, (IsEnglish(True), IsBorder(Border.BLACK), IsPlayset(False)), 1.)
-	# wish_list = WishList((wish,))
-	# cardboards = [cardboard]
-
 	market_loader = MarketLoader(db)
-	# market = market_loader.update(wish_list.cardboards, clear_cache_when_done = False)
-	market = market_loader.load()
+	market = market_loader.update(wish_list.cardboards, clear_cache_when_done = True)
 
 	print('market loaded', timer.middle_time())
 
 	evaluator = Evaluator(market, wish_list, StandardWishingStrategy)
-
 	evaluated_market = evaluator.evaluate()
 
 	print('market evaluated', timer.middle_time())
 
-	evaluation_persistor.save(evaluated_market, 'test')
+	update.update_sheet(evaluated_market)
 
-	print('evaluation persisted', timer.middle_time())
-
-	# evaluated_market = evaluation_persistor.load('test')
-	#
-	# print('evaluation loaded', timer.middle_time())
-
-	# for seller in evaluated_market.sellers:
-	# 	print(len(seller.articles))
-
-	# update.update_sheet(evaluated_market)
-	#
-	# print('sheet updated', timer.middle_time())
+	print('sheet updated', timer.middle_time())
 
 
 if __name__ == '__main__':
-	check()
+	full_check()

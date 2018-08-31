@@ -12,7 +12,6 @@ from mtgorp.models.serilization.strategies.jsonid import JsonId
 from mtgorp.models.persistent.cardboard import Cardboard
 from mtgorp.db.database import CardDatabase
 
-from mkmchecker.eta.eta import EtaContext
 from mkmchecker.values.values import Condition
 from mkmchecker.wishlist.wishlist import WishList, Wish, Requirement
 from mkmchecker.market.model import Market, Seller, Article

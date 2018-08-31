@@ -52,10 +52,10 @@ def _article_to_string(article: t.Optional[Article]) -> str:
 		str(article.price)
 		+ ( f' {article.expansion.code}' if article.expansion is not None else '' )
 		+ f' {article.condition.value}'
-		+ ( '/ne' if not article.english else '' )
-		+ ( '/ps' if article.playset else '' )
-		+ ( '/si' if article.signed else '' )
-		+ ( '/al' if article.altered else '' )
+		+ ( '/NE' if not article.english else '' )
+		+ ( '/PS' if article.playset else '' )
+		+ ( '/SI' if article.signed else '' )
+		+ ( '/AL' if article.altered else '' )
 	)
 
 

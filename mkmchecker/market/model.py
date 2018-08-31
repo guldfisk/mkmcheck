@@ -225,9 +225,8 @@ class Market(Serializeable):
 		self._sellers = frozenset(sellers)
 		self._cardboards = frozenset(cardboards)
 
+		self._seller_map = {seller.name: seller for seller in self._sellers} #type: t.Dict[str, Seller]
 		self._cardboard_articles = {} #type: t.Dict[Cardboard, t.List[Article]]
-		# self._cardboard_median_prices = {} #type: t.Dict[Cardboard, float]
-		# self._cardboard_prices = {} #type: t.Dict[t.Tuple[Cardboard, t.FrozenSet[Requirement]], float]
 
 	@property
 	def sellers(self) -> t.AbstractSet[Seller]:
@@ -259,23 +258,6 @@ class Market(Serializeable):
 			)
 			return self._cardboard_articles[cardboard]
 
-	# def price_for_cardboard_with_requirements(
-	# 	self,
-	# 	cardboard: Cardboard,
-	# 	requirements: t.FrozenSet[Requirement],
-	# 	percentile: int,
-	# ) -> float:
-	# 	key = cardboard, requirements
-	# 	try:
-	# 		return self._cardboard_prices[key]
-	# 	except KeyError:
-	# 		self._cardboard_prices[key] = np.percentile(
-	# 			list(
-	# 				article.price
-	# 				for article in
-	# 			)
-	# 		)
-
 	def get_prices_for_cardboard(self, cardboard: Cardboard) -> t.List[float]:
 		return list(article.price for article in self.get_articles_for_cardboard(cardboard))
 
@@ -295,6 +277,9 @@ class Market(Serializeable):
 			),
 			inflator.inflate_all(Cardboard, value['cardboards']),
 		)
+
+	def __getitem__(self, item: str) -> Seller:
+		return self._seller_map[item]
 
 	def __hash__(self) -> int:
 		return hash((self._sellers, self._cardboards))
