@@ -119,7 +119,8 @@ class MarketFetcher(object):
 		self._executor = ThreadPoolExecutor(32) if executor is None else executor
 
 		self._expansion_name_map = {
-			expansion.mkm_name: expansion
+			expansion.name if expansion.mkm_name is None else expansion.mkm_name:
+				expansion
 			for expansion in
 			db.expansions.values()
 		}

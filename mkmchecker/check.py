@@ -1,15 +1,11 @@
-
 import time
 
 from mtgorp.db.load import Loader as DbLoader
 
-from mtgorp.models.persistent.attributes.borders import Border
-
+from mkmchecker.evaluation.evaluate import Evaluator, StandardWishingStrategy
 from mkmchecker.market.load import MarketLoader
-from mkmchecker.wishload.fetch import WishFetcher
-from mkmchecker.wishload.load import WishListLoader
-from mkmchecker.evaluation.evaluate import Evaluator, StandardWishingStrategy, EvaluationPersistor
 from mkmchecker.updatesheet import update
+from mkmchecker.wishload.load import WishListLoader
 
 
 class Timer(object):
@@ -23,7 +19,7 @@ class Timer(object):
 		return v
 
 
-def full_check():
+def check(update_market: bool = True, update_wish_list: bool = True) -> None:
 
 	timer = Timer()
 	timer.middle_time()
@@ -35,15 +31,20 @@ def full_check():
 
 	wish_loader = WishListLoader(db)
 
-	if wish_loader.check_and_update():
-		print('wish list updated')
+	if update_wish_list:
+		if wish_loader.check_and_update():
+			print('wish list updated')
 
 	wish_list = wish_loader.load()
 
 	print('wishes fetched', timer.middle_time())
 
 	market_loader = MarketLoader(db)
-	market = market_loader.update(wish_list.cardboards, clear_cache_when_done = True)
+
+	if update_market:
+		market = market_loader.update(wish_list.cardboards, clear_cache_when_done = True)
+	else:
+		market = market_loader.load()
 
 	print('market loaded', timer.middle_time())
 
@@ -57,5 +58,12 @@ def full_check():
 	print('sheet updated', timer.middle_time())
 
 
+def run() -> None:
+	check(
+		update_market = False,
+		update_wish_list = True,
+	)
+
+
 if __name__ == '__main__':
-	full_check()
+	run()

@@ -44,7 +44,7 @@ class Requirement(Serializeable):
 class FromExpansions(Requirement):
 
 	def __init__(self, expansions: t.Iterable[Expansion]):
-		self._expansions = set(expansions)
+		self._expansions = frozenset(expansions)
 
 	def fulfilled(self, article: Article, seller: Seller, market: Market) -> bool:
 		return article.expansion in self._expansions
@@ -160,6 +160,81 @@ class IsEnglish(Requirement):
 
 	def fulfilled(self, article: Article, seller: Seller, market: Market) -> bool:
 		return article.english == self._value
+
+	def _serialized_values(self) -> t.Dict[str, serializeable_value]:
+		return {'value': self._value}
+
+	@classmethod
+	def _deserialize_values(cls, values: t.Dict[str, serializeable_value], inflator: Inflator) -> 'Requirement':
+		return cls(values['value'])
+
+	def __hash__(self) -> int:
+		return hash(self._value)
+
+	def __eq__(self, other: object) -> bool:
+		return (
+			isinstance(other, self.__class__)
+			and self._value == other._value
+		)
+
+
+class IsFoil(Requirement):
+
+	def __init__(self, value: bool):
+		self._value = value
+
+	def fulfilled(self, article: Article, seller: Seller, market: Market) -> bool:
+		return article.foil == self._value
+
+	def _serialized_values(self) -> t.Dict[str, serializeable_value]:
+		return {'value': self._value}
+
+	@classmethod
+	def _deserialize_values(cls, values: t.Dict[str, serializeable_value], inflator: Inflator) -> 'Requirement':
+		return cls(values['value'])
+
+	def __hash__(self) -> int:
+		return hash(self._value)
+
+	def __eq__(self, other: object) -> bool:
+		return (
+			isinstance(other, self.__class__)
+			and self._value == other._value
+		)
+
+
+class IsSigned(Requirement):
+
+	def __init__(self, value: bool):
+		self._value = value
+
+	def fulfilled(self, article: Article, seller: Seller, market: Market) -> bool:
+		return article.signed == self._value
+
+	def _serialized_values(self) -> t.Dict[str, serializeable_value]:
+		return {'value': self._value}
+
+	@classmethod
+	def _deserialize_values(cls, values: t.Dict[str, serializeable_value], inflator: Inflator) -> 'Requirement':
+		return cls(values['value'])
+
+	def __hash__(self) -> int:
+		return hash(self._value)
+
+	def __eq__(self, other: object) -> bool:
+		return (
+			isinstance(other, self.__class__)
+			and self._value == other._value
+		)
+
+
+class IsAltered(Requirement):
+
+	def __init__(self, value: bool):
+		self._value = value
+
+	def fulfilled(self, article: Article, seller: Seller, market: Market) -> bool:
+		return article.altered == self._value
 
 	def _serialized_values(self) -> t.Dict[str, serializeable_value]:
 		return {'value': self._value}
