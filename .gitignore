@@ -1,0 +1,15 @@
+.idea/misc.xml
+.idea/mkmcheck.iml
+.idea/modules.xml
+.idea/workspace.xml
+.idea/other.xml
+mkmchecker/resources/
+/mkmchecker/test.py
+.idea/dictionaries/
+mkmchecker/__pycache__/
+mkmchecker/market/__pycache__/
+mkmchecker/sheetclient/__pycache__/
+mkmchecker/values/__pycache__/
+mkmchecker/wishlist/__pycache__/
+/mkmchecker/mkmChecker.py
+mkmchecker/wishload/__pycache__/
