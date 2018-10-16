@@ -10,8 +10,8 @@ from mtgorp.models.persistent.cardboard import Cardboard
 from mtgorp.models.persistent.expansion import Expansion
 from mtgorp.models.persistent.attributes.borders import Border
 
-from mkmchecker.values.values import Condition
-from mkmchecker.market.model import Article, Seller, Market
+from mkmcheck.values.values import Condition
+from mkmcheck.market.model import Article, Seller, Market
 
 
 class Requirement(Serializeable):

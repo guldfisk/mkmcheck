@@ -1,8 +1,8 @@
 import typing as t
 
-from mkmchecker.evaluation.evaluate import EvaluatedMarket
-from mkmchecker.market.model import Article
-from mkmchecker.sheetclient import client
+from mkmcheck.evaluation.evaluate import EvaluatedMarket
+from mkmcheck.market.model import Article
+from mkmcheck.sheetclient import client
 
 
 SHEET_ID = '1zhZuAAAYZk_f3lCsi0oFXXiRh5jiSMydurKnMYR6HJ8'

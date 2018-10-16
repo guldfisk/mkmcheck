@@ -2,10 +2,10 @@ import time
 
 from mtgorp.db.load import Loader as DbLoader
 
-from mkmchecker.evaluation.evaluate import Evaluator, StandardWishingStrategy
-from mkmchecker.market.load import MarketLoader
-from mkmchecker.updatesheet import update
-from mkmchecker.wishload.load import WishListLoader
+from mkmcheck.evaluation.evaluate import Evaluator, StandardWishingStrategy
+from mkmcheck.market.load import MarketLoader
+from mkmcheck.updatesheet import update
+from mkmcheck.wishload.load import WishListLoader
 
 
 class Timer(object):

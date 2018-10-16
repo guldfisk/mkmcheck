@@ -6,7 +6,7 @@ from mtgorp.models.serilization.serializeable import Serializeable, serializatio
 from mtgorp.models.persistent.cardboard import Cardboard
 from mtgorp.models.persistent.expansion import Expansion
 
-from mkmchecker.values.values import Condition
+from mkmcheck.values.values import Condition
 
 
 class Article(Serializeable):

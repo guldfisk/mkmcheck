@@ -17,10 +17,10 @@ from mtgorp.db.database import CardDatabase
 from mtgorp.models.persistent.expansion import Expansion
 from mtgorp.models.persistent.cardboard import Cardboard
 
-from mkmchecker import paths
-from mkmchecker.market.model import Article, Seller, Market
-from mkmchecker.values.values import Condition
-from mkmchecker.market.cache import Cacher
+from mkmcheck import paths
+from mkmcheck.market.model import Article, Seller, Market
+from mkmcheck.values.values import Condition
+from mkmcheck.market.cache import Cacher
 
 
 class Requester(object):

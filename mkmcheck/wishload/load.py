@@ -7,9 +7,9 @@ import os
 from mtgorp.models.serilization.strategies.jsonid import JsonId
 from mtgorp.db.database import CardDatabase
 
-from mkmchecker import paths
-from mkmchecker.wishlist.wishlist import WishList
-from mkmchecker.wishload.fetch import WishFetcher, WishFetchException
+from mkmcheck import paths
+from mkmcheck.wishlist.wishlist import WishList
+from mkmcheck.wishload.fetch import WishFetcher, WishFetchException
 
 
 class WishLoadException(Exception):

@@ -14,10 +14,10 @@ from mtgorp.models.serilization.strategies.jsonid import JsonId
 from mtgorp.models.persistent.cardboard import Cardboard
 from mtgorp.db.database import CardDatabase
 
-from mkmchecker.values.values import Condition
-from mkmchecker.wishlist.wishlist import WishList, Wish, Requirement
-from mkmchecker.market.model import Market, Seller, Article
-from mkmchecker import paths
+from mkmcheck.values.values import Condition
+from mkmcheck.wishlist.wishlist import WishList, Wish, Requirement
+from mkmcheck.market.model import Market, Seller, Article
+from mkmcheck import paths
 
 
 class WishingStrategy(ABC):

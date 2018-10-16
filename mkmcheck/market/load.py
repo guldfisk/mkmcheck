@@ -7,9 +7,9 @@ from mtgorp.models.serilization.strategies.jsonid import JsonId
 from mtgorp.db.database import CardDatabase
 from mtgorp.models.persistent.cardboard import Cardboard
 
-from mkmchecker import paths
-from mkmchecker.market.model import Market
-from mkmchecker.market.update import MarketFetcher
+from mkmcheck import paths
+from mkmcheck.market.model import Market
+from mkmcheck.market.update import MarketFetcher
 
 
 class MarketLoadException(Exception):

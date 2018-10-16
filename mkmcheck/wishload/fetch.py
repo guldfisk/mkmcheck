@@ -9,9 +9,9 @@ from mtgorp.models.persistent.attributes.borders import Border
 from mtgorp.db.database import CardDatabase
 from mtgorp.models.persistent.cardboard import Cardboard
 
-from mkmchecker.values.values import Condition
-from mkmchecker.wishlist import wishlist
-from mkmchecker.wishlist.wishlist import (
+from mkmcheck.values.values import Condition
+from mkmcheck.wishlist import wishlist
+from mkmcheck.wishlist.wishlist import (
 	WishList,
 	Wish,
 	Requirement,

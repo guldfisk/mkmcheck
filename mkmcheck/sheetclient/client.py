@@ -7,8 +7,8 @@ from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
 
-from mkmchecker.paths import CLIENT_SECRET_FILE, CREDENTIAL_PATH
-from mkmchecker.values.values import APPLICATION_NAME
+from mkmcheck.paths import CLIENT_SECRET_FILE, CREDENTIAL_PATH
+from mkmcheck.values.values import APPLICATION_NAME
 
 
 SCOPES = 'https://www.googleapis.com/auth/spreadsheets'

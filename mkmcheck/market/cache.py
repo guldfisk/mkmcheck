@@ -8,7 +8,7 @@ from queue import Queue
 
 from promise import Promise
 
-from mkmchecker import paths
+from mkmcheck import paths
 
 
 CACHE_DIR = os.path.join(paths.APP_DATA_DIR, 'cache')
