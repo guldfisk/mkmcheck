@@ -1,27 +1,25 @@
-
 import os
 
 import appdirs
 
+from secretresources import paths
+
 
 APP_DATA_DIR = appdirs.AppDirs('mkmcheck', 'mkmcheck').user_data_dir
 
-RESOURCE_DIR = os.path.join(
-	os.path.dirname(__file__),
-	'resources',
-)
+SECRETS_PATH = paths.project_name_to_secret_dir('mkm_check')
 
 CLIENT_SECRET_FILE = os.path.join(
-	RESOURCE_DIR,
+	SECRETS_PATH,
 	'client_secret.json',
 )
 
 CREDENTIAL_PATH = os.path.join(
-	RESOURCE_DIR,
+	SECRETS_PATH,
 	'storage.json'
 )
 
 CONFIG_PATH = os.path.join(
-	RESOURCE_DIR,
+	SECRETS_PATH,
 	'mkmapikeys.cfg',
 )

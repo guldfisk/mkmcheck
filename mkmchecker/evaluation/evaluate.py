@@ -7,6 +7,8 @@ from itertools import chain
 
 import numpy as np
 
+from lazy_property import LazyProperty
+
 from mtgorp.models.serilization.serializeable import Serializeable, serialization_model, Inflator
 from mtgorp.models.serilization.strategies.jsonid import JsonId
 from mtgorp.models.persistent.cardboard import Cardboard
@@ -93,40 +95,42 @@ class EvaluatedSeller(Serializeable):
 	def __init__(
 		self,
 		seller: Seller,
-		articles: t.Optional[t.List[t.Optional[Article]]] = None,
-		value: t.Optional[float] = 0.,
+		articles: t.Optional[t.Dict[t.Optional[Article]], float] = None,
 	):
 		self._seller = seller
-		self._articles = [] if articles is None else articles #type: t.List[t.Optional[Article]]
-		self.value = value
+		self._articles = {} if articles is None else articles #type: t.Dict[t.Optional[Article], float]
 
 	@property
 	def seller(self) -> Seller:
 		return self._seller
 
 	@property
-	def articles(self) -> t.List[t.Optional[Article]]:
+	def articles(self) -> t.Dict[t.Optional[Article], float]:
 		return self._articles
+
+	@LazyProperty
+	def value(self) -> float:
+		return sum(self._articles.values())
 
 	def serialize(self) -> serialization_model:
 		return {
 			'seller': self._seller,
 			'articles': self._articles,
-			'value': self.value,
 		}
 
 	@classmethod
 	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedSeller':
 		return cls(
 			Seller.deserialize(value['seller'], inflator),
-			list(
-				None
-				if article is None else
-				Article.deserialize(article, inflator)
-				for article in
-				value['articles']
-			),
-			value['value'],
+			{
+				(
+					None
+					if article is None else
+					Article.deserialize(article, inflator)
+				): _value
+				for article, _value in
+				value['articles'].items()
+			}
 		)
 
 	def __hash__(self) -> int:

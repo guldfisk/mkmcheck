@@ -18,10 +18,12 @@ setup(
 	dependency_links=[
 		'https://github.com/guldfisk/orp/tarball/master#egg=orp-1.0',
 		'https://github.com/guldfisk/mtgorp/tarball/master#egg=mtgorp-1.0',
+		'https://github.com/guldfisk/secretresources/tarball/master#egg=secretresources-1.0',
 	],
 	install_requires=[
 		'orp',
 		'mtgorp',
+		'secretresources',
 		'lazy-property',
 		'multiset',
 		'appdirs',
@@ -34,3 +36,7 @@ setup(
 		'promise',
 	]
 )
+
+from secretresources.manage import create_project
+
+create_project('mkm_check')

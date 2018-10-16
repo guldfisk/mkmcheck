@@ -20,7 +20,6 @@ class Timer(object):
 
 
 def check(update_market: bool = True, update_wish_list: bool = True) -> None:
-
 	timer = Timer()
 	timer.middle_time()
 
@@ -53,15 +52,15 @@ def check(update_market: bool = True, update_wish_list: bool = True) -> None:
 
 	print('market evaluated', timer.middle_time())
 
-	update.update_sheet(evaluated_market)
-
-	print('sheet updated', timer.middle_time())
+	# update.update_sheet(evaluated_market)
+	#
+	# print('sheet updated', timer.middle_time())
 
 
 def run() -> None:
 	check(
 		update_market = False,
-		update_wish_list = True,
+		update_wish_list = False,
 	)
 
 
