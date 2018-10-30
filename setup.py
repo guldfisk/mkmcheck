@@ -36,7 +36,3 @@ setup(
 		'promise',
 	]
 )
-
-from secretresources.manage import create_project
-
-create_project('mkmcheck')
