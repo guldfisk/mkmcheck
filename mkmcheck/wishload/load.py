@@ -12,7 +12,7 @@ from mkmcheck.wishlist.wishlist import WishList
 from mkmcheck.wishload.fetch import WishFetcher, WishFetchException
 
 
-class WishLoadException(Exception):
+class WishLoadException(WishFetchException):
 	pass
 
 
@@ -82,10 +82,7 @@ class WishListLoader(object):
 
 	def check_and_update(self) -> bool:
 		local_list = self._get_current_local_list()
-		try:
-			remote_list = self._fetcher.fetch()
-		except WishFetchException:
-			return False
+		remote_list = self._fetcher.fetch()
 
 		if local_list is None or local_list != remote_list:
 			self._persist_list(remote_list)

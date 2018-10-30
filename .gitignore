@@ -1,4 +1,5 @@
 .idea/
 mkmcheck/resources/
 /mkmcheck/test.py
-/mkmcheck/mkmChecker.py
+/.gitignore
+mkmcheck/utilities/__pycache__/

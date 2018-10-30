@@ -10,7 +10,7 @@ import numpy as np
 from lazy_property import LazyProperty
 
 from mtgorp.models.serilization.serializeable import Serializeable, serialization_model, Inflator
-from mtgorp.models.serilization.strategies.jsonid import JsonId
+from mtgorp.models.serilization.strategies.picklestrategy import PickleStrategy
 from mtgorp.models.persistent.cardboard import Cardboard
 from mtgorp.db.database import CardDatabase
 
@@ -18,6 +18,7 @@ from mkmcheck.values.values import Condition
 from mkmcheck.wishlist.wishlist import WishList, Wish, Requirement
 from mkmcheck.market.model import Market, Seller, Article
 from mkmcheck import paths
+from mkmcheck.utilities.algorithms import fill_sack
 
 
 class WishingStrategy(ABC):
@@ -62,7 +63,7 @@ class StandardWishingStrategy(WishingStrategy):
 
 	@classmethod
 	def get_weight_exponent(cls) -> float:
-		return 2.2
+		return 1.9
 
 	@classmethod
 	def condition_reduction(cls, condition: Condition) -> float:
@@ -90,47 +91,125 @@ class StandardWishingStrategy(WishingStrategy):
 			return 0.
 
 
+class EvaluatedWish(Serializeable):
+
+	def __init__(self, wish: Wish, article: t.Optional[Article], value: float):
+		self._wish = wish
+		self._article = article
+		self._value = value
+
+	@property
+	def wish(self) -> Wish:
+		return self._wish
+
+	@property
+	def article(self) -> t.Optional[Article]:
+		return self._article
+
+	@property
+	def value(self) -> float:
+		return (
+			self._value
+			if self._article else
+			0
+		)
+
+	@property
+	def fulfilled(self) -> bool:
+		return bool(self._article)
+
+	def __eq__(self, other: object) -> bool:
+		return (
+			isinstance(other, self.__class__)
+			and self._wish == other._wish
+			and self._article == other._article
+		)
+
+	def __hash__(self) -> int:
+		return hash((self._wish, self._article))
+
+	def serialize(self) -> serialization_model:
+		return {
+			'wish': self._wish,
+			'article': self._article,
+			'value': self._value,
+		}
+
+	@classmethod
+	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedWish':
+		return cls(
+			Wish.deserialize(value['wish'], inflator),
+			Article.deserialize(value['article'], inflator),
+			value['value'],
+		)
+
+	def __str__(self) -> str:
+		return f'{self.__class__.__name__}({self._wish}, {self._article}, {self._value})'
+
+
 class EvaluatedSeller(Serializeable):
 
 	def __init__(
 		self,
 		seller: Seller,
-		articles: t.Optional[t.Dict[t.Optional[Article]], float] = None,
+		wishes: t.Optional[t.List[EvaluatedWish]] = None,
 	):
 		self._seller = seller
-		self._articles = {} if articles is None else articles #type: t.Dict[t.Optional[Article], float]
+		self._wishes = [] if wishes is None else wishes #type: t.List[EvaluatedWish]
 
 	@property
 	def seller(self) -> Seller:
 		return self._seller
 
 	@property
-	def articles(self) -> t.Dict[t.Optional[Article], float]:
-		return self._articles
+	def wishes(self) -> t.List[EvaluatedWish]:
+		return self._wishes
 
 	@LazyProperty
 	def value(self) -> float:
-		return sum(self._articles.values())
+		return sum(wish.value for wish in self._wishes)
+
+	@classmethod
+	def _float_to_int(cls, value: float) -> int:
+		return int(value * 100)
+
+	@classmethod
+	def _int_to_float(cls, value: int) -> float:
+		return value / 100
+
+	def max_value_for_price(self, price: float) -> t.Tuple[float, t.List[EvaluatedWish]]:
+		value, wishes = fill_sack(
+			self._float_to_int(price),
+			*zip(
+				*(
+					(
+						self._float_to_int(wish.article.price),
+						self._float_to_int(wish.value),
+						wish,
+					)
+					for wish in
+					self._wishes
+					if wish.fulfilled
+				)
+			)
+		)
+		return self._int_to_float(value), wishes
 
 	def serialize(self) -> serialization_model:
 		return {
 			'seller': self._seller,
-			'articles': self._articles,
+			'wishes': self._wishes,
 		}
 
 	@classmethod
 	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedSeller':
 		return cls(
 			Seller.deserialize(value['seller'], inflator),
-			{
-				(
-					None
-					if article is None else
-					Article.deserialize(article, inflator)
-				): _value
-				for article, _value in
-				value['articles'].items()
-			}
+			[
+				EvaluatedWish.deserialize(evaluated_wish, inflator)
+				for evaluated_wish in
+				value['wishes']
+			],
 		)
 
 	def __hash__(self) -> int:
@@ -143,16 +222,11 @@ class EvaluatedSeller(Serializeable):
 		)
 
 
-class EvaluatedMarket(Serializeable):
+class EvaluatedSellers(Serializeable):
 
-	def __init__(self, market: Market, wish_list: WishList, sellers: t.List[EvaluatedSeller]):
-		self._market = market
+	def __init__(self, wish_list: WishList, sellers: t.List[EvaluatedSeller]):
 		self._wish_list = wish_list
 		self._sellers = sellers
-
-	@property
-	def market(self) -> Market:
-		return self._market
 
 	@property
 	def wish_list(self) -> WishList:
@@ -164,33 +238,33 @@ class EvaluatedMarket(Serializeable):
 
 	def serialize(self) -> serialization_model:
 		return {
-			'market': self._market,
 			'wish_list': self._wish_list,
 			'sellers': self._sellers,
 		}
 
 	@classmethod
-	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedMarket':
+	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedSellers':
 		return cls(
-			Market.deserialize(value['market'], inflator),
 			WishList.deserialize(value['wish_list'], inflator),
-			list(
+			[
 				EvaluatedSeller.deserialize(seller, inflator)
 				for seller in
 				value['sellers']
-			),
+			],
 		)
 
 	def __hash__(self) -> int:
-		return hash((self._market, self._wish_list, self._sellers))
+		return hash((self._wish_list, self._sellers))
 
 	def __eq__(self, other: object) -> bool:
 		return (
 			isinstance(other, self.__class__)
-			and self._market == other._market
 			and self._wish_list == other._wish_list
 			and self._sellers == other._sellers
 		)
+
+	def __iter__(self) -> t.Iterable[EvaluatedSeller]:
+		return self._sellers.__iter__()
 
 
 class Evaluator(object):
@@ -291,7 +365,7 @@ class Evaluator(object):
 			* wish.weight ** strategy.get_weight_exponent()
 		)
 
-	def evaluate(self) -> EvaluatedMarket:
+	def evaluate(self) -> EvaluatedSellers:
 		evaluated_sellers = []
 
 		for seller in self._market.sellers:
@@ -306,18 +380,22 @@ class Evaluator(object):
 					strategy = self._wishing_strategy,
 				)
 
-				evaluated_seller.value += value
-				evaluated_seller.articles.append(article)
+				evaluated_seller.wishes.append(
+					EvaluatedWish(
+						wish,
+						article,
+						value,
+					)
+				)
 
 			evaluated_sellers.append(evaluated_seller)
 
-		return EvaluatedMarket(
-			self._market,
+		return EvaluatedSellers(
 			self._wish_list,
 			sorted(
 				evaluated_sellers,
-				key=lambda _evaluated_seller: _evaluated_seller.value,
-				reverse=True,
+				key = lambda _evaluated_seller: _evaluated_seller.value,
+				reverse = True,
 			),
 		)
 
@@ -331,20 +409,20 @@ class EvaluationPersistor(object):
 
 	def __init__(self, db: CardDatabase):
 		self._db = db
-		self._strategy = JsonId(db)
+		self._strategy = PickleStrategy(db)
 
 		if not os.path.exists(self._EVALUATION_PATH):
 			os.makedirs(self._EVALUATION_PATH)
 
-	def save(self, evaluated_market: EvaluatedMarket, name: str) -> None:
-		with open(os.path.join(self._EVALUATION_PATH, name + '.json'), 'w') as f:
+	def save(self, evaluated_sellers: EvaluatedSellers, name: str) -> None:
+		with open(os.path.join(self._EVALUATION_PATH, name), 'wb') as f:
 			f.write(
-				self._strategy.serialize(evaluated_market)
+				self._strategy.serialize(evaluated_sellers)
 			)
 
-	def load(self, name: str) -> EvaluatedMarket:
-		with open(os.path.join(self._EVALUATION_PATH, name + '.json'), 'r') as f:
+	def load(self, name: str) -> EvaluatedSellers:
+		with open(os.path.join(self._EVALUATION_PATH, name), 'rb') as f:
 			return self._strategy.deserialize(
-				EvaluatedMarket,
+				EvaluatedSellers,
 				f.read(),
 			)

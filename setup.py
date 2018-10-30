@@ -39,4 +39,4 @@ setup(
 
 from secretresources.manage import create_project
 
-create_project('mkm_check')
+create_project('mkmcheck')

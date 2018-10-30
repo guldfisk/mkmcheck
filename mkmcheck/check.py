@@ -2,10 +2,10 @@ import time
 
 from mtgorp.db.load import Loader as DbLoader
 
-from mkmcheck.evaluation.evaluate import Evaluator, StandardWishingStrategy
+from mkmcheck.evaluation.evaluate import Evaluator, StandardWishingStrategy, EvaluationPersistor, EvaluatedSellers
 from mkmcheck.market.load import MarketLoader
 from mkmcheck.updatesheet import update
-from mkmcheck.wishload.load import WishListLoader
+from mkmcheck.wishload.load import WishListLoader, WishFetchException
 
 
 class Timer(object):
@@ -19,7 +19,21 @@ class Timer(object):
 		return v
 
 
-def check(update_market: bool = True, update_wish_list: bool = True) -> None:
+_LAST_EVALUATION_NAME = '.last_evaluation'
+
+
+class CheckException(Exception):
+	pass
+
+
+def check(
+	update_market: bool = True,
+	update_wish_list: bool = True,
+	update_sheet: bool = True,
+	persist_evaluation: bool = False,
+	clear_cache_when_done: bool = True,
+) -> EvaluatedSellers:
+
 	timer = Timer()
 	timer.middle_time()
 
@@ -36,31 +50,55 @@ def check(update_market: bool = True, update_wish_list: bool = True) -> None:
 
 	wish_list = wish_loader.load()
 
-	print('wishes fetched', timer.middle_time())
+	print('wishes loaded', timer.middle_time())
 
 	market_loader = MarketLoader(db)
 
 	if update_market:
-		market = market_loader.update(wish_list.cardboards, clear_cache_when_done = True)
+		market = market_loader.update(
+			wish_list.cardboards,
+			clear_cache_when_done = clear_cache_when_done,
+		)
 	else:
 		market = market_loader.load()
 
 	print('market loaded', timer.middle_time())
 
-	evaluator = Evaluator(market, wish_list, StandardWishingStrategy)
-	evaluated_market = evaluator.evaluate()
+	evaluated_sellers = Evaluator(market, wish_list, StandardWishingStrategy).evaluate()
 
 	print('market evaluated', timer.middle_time())
 
-	# update.update_sheet(evaluated_market)
-	#
-	# print('sheet updated', timer.middle_time())
+	if persist_evaluation:
+		evaluation_persistor = EvaluationPersistor(db=db)
+
+		evaluation_persistor.save(evaluated_sellers, _LAST_EVALUATION_NAME)
+
+		print('market persisted', timer.middle_time())
+
+	if update_sheet:
+		if update_wish_list:
+			try:
+				changed = wish_loader.check_and_update()
+			except WishFetchException:
+				changed = True
+
+			if changed:
+				raise CheckException('Attempting to update sheet with modified wish list')
+
+		update.update_sheet(evaluated_sellers)
+
+		print('sheet updated', timer.middle_time())
+
+	return evaluated_sellers
 
 
 def run() -> None:
 	check(
 		update_market = False,
 		update_wish_list = False,
+		update_sheet = False,
+		persist_evaluation = False,
+		clear_cache_when_done = False,
 	)
 
 

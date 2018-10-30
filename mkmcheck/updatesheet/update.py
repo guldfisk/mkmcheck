@@ -1,8 +1,8 @@
 import typing as t
 
-from mkmcheck.evaluation.evaluate import EvaluatedMarket
+from mkmcheck.evaluation.evaluate import EvaluatedSellers
 from mkmcheck.market.model import Article
-from mkmcheck.sheetclient import client
+from mkmcheck.updatesheet.sheetclient import client
 
 
 SHEET_ID = '1zhZuAAAYZk_f3lCsi0oFXXiRh5jiSMydurKnMYR6HJ8'
@@ -59,17 +59,17 @@ def _article_to_string(article: t.Optional[Article]) -> str:
 	)
 
 
-def update_sheet(evaluated_market: EvaluatedMarket) -> None:
-	_sellers = evaluated_market.sellers[:50]
+def update_sheet(evaluated_sellers: EvaluatedSellers) -> None:
+	_sellers = evaluated_sellers.sellers[:50]
 
 	_update_grid(
 		list(
 			zip(
 				*(
 					[seller.seller.name] + [
-						_article_to_string(article)
-						for article in
-						seller.articles
+						_article_to_string(wish.article)
+						for wish in
+						seller.wishes
 					]
 					for seller in
 					_sellers

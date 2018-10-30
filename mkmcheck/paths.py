@@ -7,7 +7,7 @@ from secretresources import paths
 
 APP_DATA_DIR = appdirs.AppDirs('mkmcheck', 'mkmcheck').user_data_dir
 
-SECRETS_PATH = paths.project_name_to_secret_dir('mkm_check')
+SECRETS_PATH = paths.project_name_to_secret_dir('mkmcheck')
 
 CLIENT_SECRET_FILE = os.path.join(
 	SECRETS_PATH,
