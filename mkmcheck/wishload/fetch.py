@@ -76,7 +76,7 @@ class WishFetcher(object):
 			match = self._REQUIREMENT_PATTERN.match(requirement)
 
 			if not match:
-				raise WishParseException(f'Invalid requirement {match}')
+				raise WishParseException(f'Invalid requirement {requirement}')
 
 			restriction = match.groups()[0].lower()
 			value = match.groups()[2]
