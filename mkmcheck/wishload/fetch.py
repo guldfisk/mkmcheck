@@ -73,10 +73,13 @@ class WishFetcher(object):
 		can_be_altered = False
 
 		for requirement in requirements.split(','):
+			if not requirement:
+				continue
+
 			match = self._REQUIREMENT_PATTERN.match(requirement)
 
 			if not match:
-				raise WishParseException(f'Invalid requirement {requirement}')
+				raise WishParseException(f'Invalid requirement "{requirement}"')
 
 			restriction = match.groups()[0].lower()
 			value = match.groups()[2]
@@ -145,7 +148,7 @@ class WishFetcher(object):
 		return _requirements
 
 
-	def _parse_wish(self, name: str, weight: str, requirement: str) -> t.Optional[Wish]:
+	def _parse_wish(self, name: str, weight: str, requirements: str) -> t.Optional[Wish]:
 		try:
 			cardboard = self._db.cardboards[name]
 		except KeyError:
@@ -154,7 +157,7 @@ class WishFetcher(object):
 
 		return Wish(
 			cardboard,
-			self._parse_requirements(requirement),
+			self._parse_requirements(requirements),
 			float(weight),
 		)
 
