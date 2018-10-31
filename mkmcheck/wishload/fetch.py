@@ -7,7 +7,6 @@ import numpy as np
 
 from mtgorp.models.persistent.attributes.borders import Border
 from mtgorp.db.database import CardDatabase
-from mtgorp.models.persistent.cardboard import Cardboard
 
 from mkmcheck.values.values import Condition
 from mkmcheck.wishlist import wishlist
@@ -150,10 +149,9 @@ class WishFetcher(object):
 
 	def _parse_wish(self, name: str, weight: str, requirements: str) -> t.Optional[Wish]:
 		try:
-			cardboard = self._db.cardboards[name]
+			cardboard = self._db.cardboards[name.rstrip()]
 		except KeyError:
-			print(f'invalid cardboard: "{name}"')
-			return None
+			raise WishParseException(f'invalid cardboard: "{name}"')
 
 		return Wish(
 			cardboard,
@@ -163,10 +161,15 @@ class WishFetcher(object):
 
 	def fetch(self) -> WishList:
 		wishes = []
+		exceptions = []
 
 		for row in tsv_to_ndarray(self._fetch_tsv(self.SHEET_ID))[1:]:
-			parsed = self._parse_wish(*row[:3])
-			if parsed:
-				wishes.append(parsed)
+			try:
+				wishes.append(self._parse_wish(*row[:3]))
+			except WishParseException as e:
+				exceptions.append(e)
+
+		if exceptions:
+			raise WishParseException(exceptions)
 
 		return WishList(wishes)
