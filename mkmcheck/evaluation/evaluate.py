@@ -365,30 +365,34 @@ class Evaluator(object):
 			* wish.weight ** strategy.get_weight_exponent()
 		)
 
+	def _evaluate_seller(self, seller: Seller) -> EvaluatedSeller:
+		evaluated_seller = EvaluatedSeller(seller)
+
+		for wish in self._wish_list:
+			article, value = self._evaluate_wish(
+				wish=wish,
+				seller=seller,
+				market=self._market,
+				strategy=self._wishing_strategy,
+			)
+
+			evaluated_seller.wishes.append(
+				EvaluatedWish(
+					wish,
+					article,
+					value,
+				)
+			)
+
+		return evaluated_seller
+
 	def evaluate(self) -> EvaluatedSellers:
-		evaluated_sellers = []
-
-		for seller in self._market.sellers:
-
-			evaluated_seller = EvaluatedSeller(seller)
-
-			for wish in self._wish_list:
-				article, value = self._evaluate_wish(
-					wish = wish,
-					seller = seller,
-					market = self._market,
-					strategy = self._wishing_strategy,
-				)
-
-				evaluated_seller.wishes.append(
-					EvaluatedWish(
-						wish,
-						article,
-						value,
-					)
-				)
-
-			evaluated_sellers.append(evaluated_seller)
+		# with Pool(4) as worker_pool:
+		# 	evaluated_sellers = worker_pool.map(
+		# 		self._evaluate_seller,
+		# 		self._market.sellers,
+		# 	)
+		evaluated_sellers = map(self._evaluate_seller, self._market.sellers)
 
 		return EvaluatedSellers(
 			self._wish_list,
