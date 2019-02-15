@@ -23,6 +23,7 @@ Base = declarative_base()
 _UT = UnicodeText()
 _UT.with_variant(MEDIUMTEXT, 'mysql')
 
+
 class RequestCache(Base):
 	__tablename__ = 'request_cache'
 

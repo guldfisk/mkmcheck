@@ -1,5 +1,7 @@
 
 
+from mkmcheck import ScopedSession, SHEET_ID, INPUT_SHEET_NAME, db, engine
+
 from mkmcheck.model import models
 from mkmcheck.wishload.fetch import WishListFetcher
 from mkmcheck.market.update import MarketFetcher
@@ -7,7 +9,6 @@ from mkmcheck.evaluation.evaluate import Evaluator, StandardEvaluationStrategy
 from mkmcheck.updatesheet.update import SheetsUpdater
 from mkmcheck.utilities.logging import Timer
 
-from mkmcheck import ScopedSession, db, SHEET_ID, INPUT_SHEET_NAME
 
 
 
@@ -20,6 +21,8 @@ def check(
 ):
 
 	timer = Timer()
+
+	models.create(engine)
 
 	session = ScopedSession()
 
@@ -95,7 +98,7 @@ def check(
 
 		print('sheets updated', timer.middle_time())
 
-	print(f'check complete. total time: {timer.time())}')
+	print(f'check complete. total time: {timer.time()}')
 
 
 

@@ -8,7 +8,6 @@ from sqlalchemy.orm import scoped_session
 
 from mtgorp.db.load import Loader
 
-from mkmcheck.model.models import create
 from mkmcheck import paths
 
 
@@ -44,7 +43,6 @@ engine = create_engine(
 	echo = False,
 )
 
-create(engine)
 
 session_factory = sessionmaker(bind=engine)
 ScopedSession = scoped_session(session_factory)
