@@ -34,5 +34,6 @@ setup(
 		'httplib2',
 		'numpy',
 		'promise',
+		'sqlalchemy',
 	]
 )

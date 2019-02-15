@@ -1,106 +1,113 @@
-import time
-
-from mtgorp.db.load import Loader as DbLoader
-
-from mkmcheck.evaluation.evaluate import Evaluator, StandardWishingStrategy, EvaluationPersistor, EvaluatedSellers
-from mkmcheck.market.load import MarketLoader
-from mkmcheck.updatesheet import update
-from mkmcheck.wishload.load import WishListLoader, WishFetchException
 
 
-class Timer(object):
+from mkmcheck.model import models
+from mkmcheck.wishload.fetch import WishListFetcher
+from mkmcheck.market.update import MarketFetcher
+from mkmcheck.evaluation.evaluate import Evaluator, StandardEvaluationStrategy
+from mkmcheck.updatesheet.update import SheetsUpdater
+from mkmcheck.utilities.logging import Timer
 
-	def __init__(self):
-		self._current_time = 0
+from mkmcheck import ScopedSession, db, SHEET_ID, INPUT_SHEET_NAME
 
-	def middle_time(self):
-		v = time.time() - self._current_time
-		self._current_time = time.time()
-		return v
-
-
-_LAST_EVALUATION_NAME = '.last_evaluation'
-
-
-class CheckException(Exception):
-	pass
 
 
 def check(
-	update_market: bool = True,
-	update_wish_list: bool = True,
-	update_sheet: bool = True,
-	persist_evaluation: bool = False,
-	clear_cache_when_done: bool = True,
-) -> EvaluatedSellers:
+	recheck_wish_list: bool = True,
+	recheck_market: bool = False,
+	update_output_sheet: bool = True,
+	update_knapsack_sheet: bool = True,
+	update_wish_list_sheet: bool = True,
+):
 
 	timer = Timer()
-	timer.middle_time()
 
-	db_loader = DbLoader()
-	db = db_loader.load()
+	session = ScopedSession()
 
-	print('db loaded', timer.middle_time())
+	wish_list = session.query(models.WishList).order_by(models.WishList.created_date.desc()).first()
 
-	wish_loader = WishListLoader(db)
+	timer.update('local wish_list loaded')
 
-	if update_wish_list:
-		if wish_loader.check_and_update():
-			print('wish list updated')
+	wish_list_fetcher = WishListFetcher(
+		db = db,
+		spreadsheet_id = SHEET_ID,
+		sheet_name = INPUT_SHEET_NAME,
+	)
 
-	wish_list = wish_loader.load()
+	if recheck_wish_list or wish_list is None:
 
-	print('wishes loaded', timer.middle_time())
+		fetched_wish_list = wish_list_fetcher.fetch()
 
-	market_loader = MarketLoader(db)
+		timer.update('wish_list fetched')
 
-	if update_market:
-		market = market_loader.update(
-			wish_list.cardboards,
-			clear_cache_when_done = clear_cache_when_done,
-		)
+		if wish_list != fetched_wish_list:
+			print('new wish_list')
+
+			session.add(fetched_wish_list)
+			session.commit()
+
+			wish_list = fetched_wish_list
+
+			print('wish_list persisted', timer.middle_time())
+
+	print('wish_list:', wish_list)
+
+	if recheck_market:
+		market_fetcher = MarketFetcher(db)
+
+		market = market_fetcher.fetch(wish_list)
+
+		timer.update('remote market fetched')
+
+		session.add(market)
+
+		session.commit()
+
+		timer.update('remote marked persisted')
+
+
 	else:
-		market = market_loader.load()
+		market = session.query(models.Market).order_by(models.Market.created_date.desc()).first()
 
-	print('market loaded', timer.middle_time())
+		timer.update('local market loaded')
 
-	evaluated_sellers = Evaluator(market, wish_list, StandardWishingStrategy).evaluate()
+		if market is None:
+			raise Exception('No local market')
+
+
+	evaluator = Evaluator(
+		market = market,
+		evaluation_strategy = StandardEvaluationStrategy,
+		wish_list = wish_list,
+	)
+
+	evaluator.evaluate()
 
 	print('market evaluated', timer.middle_time())
 
-	if persist_evaluation:
-		evaluation_persistor = EvaluationPersistor(db=db)
 
-		evaluation_persistor.save(evaluated_sellers, _LAST_EVALUATION_NAME)
+	if update_output_sheet:
+		sheet_updater = SheetsUpdater(evaluator, wish_list_fetcher)
+		sheet_updater.update_sheets(
+			update_output_sheet = update_output_sheet,
+			update_knapsack_output_sheet = update_knapsack_sheet,
+			update_wish_list = update_wish_list_sheet
+		)
 
-		print('market persisted', timer.middle_time())
+		print('sheets updated', timer.middle_time())
 
-	if update_sheet:
-		if update_wish_list:
-			try:
-				changed = wish_loader.check_and_update()
-			except WishFetchException:
-				changed = True
-
-			if changed:
-				raise CheckException('Attempting to update sheet with modified wish list')
-
-		update.update_sheet(evaluated_sellers)
-
-		print('sheet updated', timer.middle_time())
-
-	return evaluated_sellers
+	print(f'check complete. total time: {timer.time())}')
 
 
-def run() -> None:
+
+def _check():
 	check(
-		update_market = False,
-		update_wish_list = False,
-		update_sheet = False,
-		persist_evaluation = False,
-		clear_cache_when_done = False,
+		recheck_wish_list = True,
+		recheck_market = False,
+		update_output_sheet = True,
+		update_knapsack_sheet = True,
+		update_wish_list_sheet = True,
 	)
 
 
 if __name__ == '__main__':
-	run()
+	_check()

@@ -1,41 +1,24 @@
 import typing as t
 
-import os
-from abc import ABC, abstractmethod
 import math
-from itertools import chain
+from abc import ABC, abstractmethod
+import statistics
+import functools
+import itertools
 
 import numpy as np
 
-from lazy_property import LazyProperty
-
-from mtgorp.models.serilization.serializeable import Serializeable, serialization_model, Inflator
-from mtgorp.models.serilization.strategies.picklestrategy import PickleStrategy
-from mtgorp.models.persistent.cardboard import Cardboard
-from mtgorp.db.database import CardDatabase
-
 from mkmcheck.values.values import Condition
-from mkmcheck.wishlist.wishlist import WishList, Wish, Requirement
-from mkmcheck.market.model import Market, Seller, Article
-from mkmcheck import paths
+from mkmcheck.model.models import Market, Seller, Wish, CardboardWish, Article, WishList
 from mkmcheck.utilities.algorithms import fill_sack
+from mkmcheck.utilities.logging import Timer
 
 
-class WishingStrategy(ABC):
-
-	@classmethod
-	@abstractmethod
-	def get_weight_exponent(cls) -> float:
-		pass
+class EvaluationStrategy(ABC):
 
 	@classmethod
 	@abstractmethod
-	def condition_reduction(cls, condition: Condition) -> float:
-		pass
-
-	@classmethod
-	@abstractmethod
-	def absolute_price_reduction(cls, price: float) -> float:
+	def evaluate_wish_article(cls, article: Article, wish: 'ConcludedWish', reasonable_price: float) -> float:
 		pass
 
 	@classmethod
@@ -43,13 +26,8 @@ class WishingStrategy(ABC):
 	def reasonable_price(cls, cardboard_prices: t.List) -> float:
 		pass
 
-	@classmethod
-	@abstractmethod
-	def relative_price_multiplier(cls, price: float, reasonable_price: float) -> float:
-		pass
 
-
-class StandardWishingStrategy(WishingStrategy):
+class StandardEvaluationStrategy(EvaluationStrategy):
 
 	_CONDITION_MAP = {
 		Condition.MINT: 1.,
@@ -62,19 +40,35 @@ class StandardWishingStrategy(WishingStrategy):
 	}
 
 	@classmethod
-	def get_weight_exponent(cls) -> float:
+	def _get_weight_exponent(cls) -> float:
 		return 1.9
 
 	@classmethod
-	def condition_reduction(cls, condition: Condition) -> float:
+	def _condition_reduction(cls, condition: Condition) -> float:
 		return cls._CONDITION_MAP[condition]
 
 	@classmethod
-	def absolute_price_reduction(cls, price: float) -> float:
+	def _absolute_price_reduction(cls, price: float) -> float:
 		try:
 			return 1 / (1 + math.e ** (.2 * (price - 10) ) )
 		except OverflowError:
 			return 0.
+
+	@classmethod
+	def _relative_price_multiplier(cls, price: float, reasonable_price: float) -> float:
+		try:
+			return 1 / ( 1 + math.e ** ( 5 * ( ( price / reasonable_price ) - 1.5 ) ) )
+		except OverflowError:
+			return 0.
+
+	@classmethod
+	def evaluate_wish_article(cls, article: Article, wish: 'ConcludedWish', reasonable_price: float) -> float:
+		return (
+			wish.wish.weight ** cls._get_weight_exponent()
+			* cls._condition_reduction(article.condition)
+			* cls._absolute_price_reduction(article.adjusted_price)
+			* cls._relative_price_multiplier(article.adjusted_price, reasonable_price)
+		)
 
 	@classmethod
 	def reasonable_price(cls, cardboard_prices: t.List[float]) -> float:
@@ -83,350 +77,348 @@ class StandardWishingStrategy(WishingStrategy):
 		except IndexError:
 			return 0.
 
-	@classmethod
-	def relative_price_multiplier(cls, price: float, reasonable_price: float) -> float:
-		try:
-			return 1 / ( 1 + math.e ** ( 5 * ( ( price / reasonable_price ) - 1.5 ) ) )
-		except OverflowError:
-			return 0.
 
+class ConcludedCardboardWish(object):
 
-class EvaluatedWish(Serializeable):
+	def __init__(self, cardboard_wish: CardboardWish, concluded_wish: 'ConcludedWish', evaluator: 'Evaluator'):
+		self._cardboard_wish = cardboard_wish
+		self._concluded_wish = concluded_wish
+		self._evaluator = evaluator
 
-	def __init__(self, wish: Wish, article: t.Optional[Article], value: float):
-		self._wish = wish
-		self._article = article
-		self._value = value
+		self._articles = [] #type: t.List[t.Tuple[Article, int]]
+		self._initialize_articles()
 
-	@property
-	def wish(self) -> Wish:
-		return self._wish
+		self._value = None #type: t.Optional[float]
 
-	@property
-	def article(self) -> t.Optional[Article]:
-		return self._article
-
-	@property
-	def value(self) -> float:
-		return (
-			self._value
-			if self._article else
-			0
+	def _initialize_articles(self) -> None:
+		valid_articles = sorted(
+			(
+				article
+				for article in
+				self._concluded_wish.seller.get_articles_for_cardboard(
+					self._cardboard_wish.cardboard_name
+				)
+				if self._cardboard_wish.validate_article(
+					article
+				)
+			),
+			key=lambda a:
+				a.adjusted_price,
 		)
+
+		remaining_requirement = self._cardboard_wish.minimum_amount
+
+		# This could be an actual sack fill, if the performance hit is worth it
+		for article in valid_articles:
+			if article.is_playset and remaining_requirement >= 4:
+				amount = min(article.amount, remaining_requirement) // 4
+				self._articles.append(
+					(
+						article,
+						amount,
+					)
+				)
+				remaining_requirement -= amount * 4
+
+			else:
+				self._articles.append(
+					(
+						article,
+						min(article.amount, remaining_requirement),
+					)
+				)
+				remaining_requirement -= article.amount
+
+			if remaining_requirement <= 0:
+				break
+
+	@property
+	def cardboard_amount(self):
+		return sum(
+			amount
+			for article, amount in
+			self._articles
+		)
+
+	@property
+	def articles(self) -> t.Iterable[Article]:
+		return (article for article, _ in self._articles)
 
 	@property
 	def fulfilled(self) -> bool:
-		return bool(self._article)
+		return self.cardboard_amount >= self._cardboard_wish.minimum_amount
 
-	def __eq__(self, other: object) -> bool:
-		return (
-			isinstance(other, self.__class__)
-			and self._wish == other._wish
-			and self._article == other._article
-		)
+	@property
+	def value(self) -> float:
+		if self._value is None:
+			self._value = (
+				0.
+				if not self.fulfilled else
+				sum(
+					self._evaluator.evaluate_wish_article(
+						article = article,
+						wish = self._concluded_wish,
+					) * amount
+					for article, amount in
+					self._articles
+				) / self._cardboard_wish.minimum_amount
+			)
 
-	def __hash__(self) -> int:
-		return hash((self._wish, self._article))
+		return self._value
 
-	def serialize(self) -> serialization_model:
-		return {
-			'wish': self._wish,
-			'article': self._article,
-			'value': self._value,
-		}
+	@property
+	def price(self) -> float:
+		return sum(article.price * amount for article, amount in self._articles)
 
-	@classmethod
-	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedWish':
-		return cls(
-			Wish.deserialize(value['wish'], inflator),
-			Article.deserialize(value['article'], inflator),
-			value['value'],
-		)
-
-	def __str__(self) -> str:
-		return f'{self.__class__.__name__}({self._wish}, {self._article}, {self._value})'
+	def __str__(self):
+		return ', '.join(map(str, self.articles))
 
 
-class EvaluatedSeller(Serializeable):
+class ConcludedWish(object):
 
-	def __init__(
-		self,
-		seller: Seller,
-		wishes: t.Optional[t.List[EvaluatedWish]] = None,
-	):
+	def __init__(self, wish: Wish, seller: Seller, evaluator: 'Evaluator'):
+		self._wish = wish
 		self._seller = seller
-		self._wishes = [] if wishes is None else wishes #type: t.List[EvaluatedWish]
+		self._evaluator = evaluator
+
+		self._concluded_cardboard_wishes = [] #type: t.List[ConcludedCardboardWish]
+		self._initialize_concluded_cardboard_wishes()
+
+		self._value = None #type: t.Optional[float]
+
+	def _initialize_concluded_cardboard_wishes(self):
+		self._concluded_cardboard_wishes = [
+			ConcludedCardboardWish(
+				cardboard_wish = cardboard_wish,
+				concluded_wish = self,
+				evaluator = self._evaluator,
+			)
+			for cardboard_wish in
+			self._wish.cardboard_wishes
+		]
 
 	@property
 	def seller(self) -> Seller:
 		return self._seller
 
 	@property
-	def wishes(self) -> t.List[EvaluatedWish]:
-		return self._wishes
+	def wish(self) -> Wish:
+		return self._wish
 
-	@LazyProperty
+	@property
+	def fulfilled(self):
+		return all(
+			concluded_cardboard_wish.fulfilled
+			for concluded_cardboard_wish in
+			self._concluded_cardboard_wishes
+		)
+
+	@property
 	def value(self) -> float:
-		return sum(wish.value for wish in self._wishes)
+		if self._value is None:
+			self._value = (
+				0.
+				if not self.fulfilled else
+				statistics.mean(
+					evaluated_cardboard_wish.value
+					for evaluated_cardboard_wish in
+					self._concluded_cardboard_wishes
+				)
+			)
 
-	@classmethod
-	def _float_to_int(cls, value: float) -> int:
-		return int(value * 100)
+		return self._value
 
-	@classmethod
-	def _int_to_float(cls, value: int) -> float:
-		return value / 100
+	@property
+	def price(self) -> float:
+		return sum(
+			concluded_cardboard_wish.price
+			for concluded_cardboard_wish in
+			self._concluded_cardboard_wishes
+		)
 
-	def max_value_for_price(self, price: float) -> t.Tuple[float, t.List[EvaluatedWish]]:
-		value, wishes = fill_sack(
-			self._float_to_int(price),
+	def __str__(self):
+		return ', '.join(
+			f'({concluded_cardboard_wish})'
+			for concluded_cardboard_wish in
+			self._concluded_cardboard_wishes
+		)
+
+
+class ConcludedSeller(object):
+
+	def __init__(self, seller: Seller, evaluator: 'Evaluator'):
+		self._seller = seller
+		self._evaluator = evaluator
+
+		self._concluded_wishes = [
+			ConcludedWish(
+				wish = wish,
+				seller = self._seller,
+				evaluator = self._evaluator,
+			)
+			for wish in
+			self._evaluator.wish_list.wishes
+		]
+
+		self._value = None #type: t.Optional[float]
+		self._sorted = False
+
+	@property
+	def sorted_concluded_wishes(self) -> t.List[ConcludedWish]:
+		if not self._sorted:
+			self._concluded_wishes.sort(
+				key = lambda c: c.value,
+				reverse = True,
+			)
+			self._sorted = True
+		return self._concluded_wishes
+
+	@property
+	def seller(self) -> Seller:
+		return self._seller
+
+	@property
+	def value(self) -> float:
+		if self._value is None:
+			self._value = sum(
+				concluded_wish.value
+				for concluded_wish in
+				self._concluded_wishes
+			)
+
+		return self._value
+
+	@functools.lru_cache()
+	def get_knapsack_values(self, sack_size: int) -> t.Tuple[float, t.List[ConcludedWish]]:
+		value, lst = fill_sack(
+			int(sack_size),
 			*zip(
 				*(
-					(
-						self._float_to_int(wish.article.price),
-						self._float_to_int(wish.value),
-						wish,
-					)
+					(int(wish.price), int(wish.value), wish)
 					for wish in
-					self._wishes
-					if wish.fulfilled
+					self.sorted_concluded_wishes
 				)
 			)
 		)
-		return self._int_to_float(value), wishes
+		return value, lst
 
-	def serialize(self) -> serialization_model:
-		return {
-			'seller': self._seller,
-			'wishes': self._wishes,
-		}
-
-	@classmethod
-	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedSeller':
-		return cls(
-			Seller.deserialize(value['seller'], inflator),
-			[
-				EvaluatedWish.deserialize(evaluated_wish, inflator)
-				for evaluated_wish in
-				value['wishes']
-			],
-		)
-
-	def __hash__(self) -> int:
-		return hash(self._seller)
-
-	def __eq__(self, other: object) -> bool:
-		return (
-			isinstance(other, self.__class__)
-			and self._seller == other.seller
+	@property
+	def price(self) -> float:
+		return sum(
+			concluded_wish.price
+			for concluded_wish in
+			self._concluded_wishes
 		)
 
 
-class EvaluatedSellers(Serializeable):
+class Evaluator(object):
 
-	def __init__(self, wish_list: WishList, sellers: t.List[EvaluatedSeller]):
-		self._wish_list = wish_list
-		self._sellers = sellers
+	def __init__(
+		self,
+		market: Market,
+		evaluation_strategy: t.Type[EvaluationStrategy],
+		wish_list: t.Optional[WishList] = None,
+	):
+		self._market = market
+		self._evaluation_strategy = evaluation_strategy
+		self._wish_list = self._market.wish_list if wish_list is None else wish_list
+
+		self._prices_map = {} #type: t.Dict[str, t.List[float]]
+		self._reasonable_price_map = {} #type: t.Dict[str, float]
+
+		self._concluded_sellers = [] #type: t.List[ConcludedSeller]
+
+	@property
+	def evaluation_strategy(self) -> t.Type[EvaluationStrategy]:
+		return self._evaluation_strategy
+
+	@property
+	def market(self) -> Market:
+		return self._market
 
 	@property
 	def wish_list(self) -> WishList:
 		return self._wish_list
 
 	@property
-	def sellers(self) -> t.List[EvaluatedSeller]:
-		return self._sellers
+	def concluded_sellers(self) -> t.List[ConcludedSeller]:
+		return self._concluded_sellers
 
-	def serialize(self) -> serialization_model:
-		return {
-			'wish_list': self._wish_list,
-			'sellers': self._sellers,
-		}
+	def _initialize_price_map(self):
 
-	@classmethod
-	def deserialize(cls, value: serialization_model, inflator: Inflator) -> 'EvaluatedSellers':
-		return cls(
-			WishList.deserialize(value['wish_list'], inflator),
-			[
-				EvaluatedSeller.deserialize(seller, inflator)
-				for seller in
-				value['sellers']
-			],
-		)
-
-	def __hash__(self) -> int:
-		return hash((self._wish_list, self._sellers))
-
-	def __eq__(self, other: object) -> bool:
-		return (
-			isinstance(other, self.__class__)
-			and self._wish_list == other._wish_list
-			and self._sellers == other._sellers
-		)
-
-	def __iter__(self) -> t.Iterable[EvaluatedSeller]:
-		return self._sellers.__iter__()
-
-
-class Evaluator(object):
-
-	def __init__(self, market: Market, wish_list: WishList, wish_strategy: t.Type[WishingStrategy]):
-		self._market = market
-		self._wish_list = wish_list
-		self._wishing_strategy = wish_strategy
-
-		self._reasonable_prices = {} #type: t.Dict[t.Tuple[Cardboard, t.FrozenSet[Requirement]], float]
-
-	def _get_reasonable_price(
-		self,
-		cardboard: Cardboard,
-		requirements: t.FrozenSet[Requirement],
-	) -> float:
-		key = cardboard, requirements
-
-		try:
-			return self._reasonable_prices[key]
-		except KeyError:
-			value = self._wishing_strategy.reasonable_price(
-				list(
-					article.price
-					for article in
-					chain(
-						*(
-							self._filter_articles(
-								seller.articles_for_cardboard(cardboard),
-								requirements,
-								seller,
-								self._market,
-							)
-							for seller in
-							self._market.sellers
+		for cardboard_name in self.wish_list.cardboard_names:
+			self._prices_map[cardboard_name] = list(
+				itertools.chain(
+					*(
+						(
+							article.adjusted_price
+							for article in
+							seller.get_articles_for_cardboard(cardboard_name)
 						)
+						for seller in
+						self._market.sellers
 					)
 				)
 			)
-			self._reasonable_prices[key] = value
-			return value
 
-	@classmethod
-	def _filter_articles(
-		cls,
-		articles: t.Iterable[Article],
-		requirements: t.FrozenSet[Requirement],
-		seller: Seller,
-		market: Market,
-	) -> t.Iterable[Article]:
-		return (
-			article
-			for article in
-			articles
-			if all(
-				requirement.fulfilled(article, seller, market)
-				for requirement in
-				requirements
+		self._reasonable_price_map = {
+			key: self._evaluation_strategy.reasonable_price(prices)
+			for key, prices in
+			self._prices_map.items()
+		}
+
+	def _get_reasonable_price(self, cardboard_name: str) -> float:
+		return self._reasonable_price_map[cardboard_name]
+
+	def evaluate_wish_article(self, article: Article, wish: ConcludedWish):
+		return self._evaluation_strategy.evaluate_wish_article(
+			article = article,
+			wish = wish,
+			reasonable_price = self._get_reasonable_price(
+				article.cardboard_name
 			)
 		)
 
-	def _evaluate_wish(
-		self,
-		wish: Wish,
-		seller: Seller,
-		market: Market,
-		strategy: t.Type[WishingStrategy]
-	) -> t.Tuple[t.Optional[Article], float]:
+	def _create_concluded_seller(self, seller) -> ConcludedSeller:
+		return ConcludedSeller(seller, self)
 
-		available_articles = list(
-			self._filter_articles(
-				seller.articles_for_cardboard(wish.cardboard),
-				wish.requirements,
-				seller,
-				market,
-			)
-		)
+	def _prod_value(self, concluded_seller: ConcludedSeller) -> float:
+		return concluded_seller.value
 
-		if not available_articles:
-			return None, 0.
+	def evaluate(self) -> 'Evaluator':
 
-		article = available_articles[0]
+		print('evaluating')
+		timer = Timer()
 
-		for _article in available_articles:
-			if _article.price < article.price:
-				article = _article
+		self._initialize_price_map()
 
-		return article, (
-			strategy.absolute_price_reduction(article.price)
-			* strategy.relative_price_multiplier(
-				article.price,
-				self._get_reasonable_price(
-					wish.cardboard,
-					wish.requirements,
-				),
-			)
-			* strategy.condition_reduction(article.condition)
-			* wish.weight ** strategy.get_weight_exponent()
-		)
+		timer.update('price map initialized')
 
-	def _evaluate_seller(self, seller: Seller) -> EvaluatedSeller:
-		evaluated_seller = EvaluatedSeller(seller)
-
-		for wish in self._wish_list:
-			article, value = self._evaluate_wish(
-				wish=wish,
-				seller=seller,
-				market=self._market,
-				strategy=self._wishing_strategy,
-			)
-
-			evaluated_seller.wishes.append(
-				EvaluatedWish(
-					wish,
-					article,
-					value,
-				)
-			)
-
-		return evaluated_seller
-
-	def evaluate(self) -> EvaluatedSellers:
 		# with Pool(4) as worker_pool:
-		# 	evaluated_sellers = worker_pool.map(
-		# 		self._evaluate_seller,
+		# 	self._concluded_sellers = worker_pool.map(
+		# 		self._create_concluded_seller,
 		# 		self._market.sellers,
 		# 	)
-		evaluated_sellers = map(self._evaluate_seller, self._market.sellers)
+		self._concluded_sellers = [
+			ConcludedSeller(
+				seller = seller,
+				evaluator = self,
+			) for seller in
+			self._market.sellers
+		]
 
-		return EvaluatedSellers(
-			self._wish_list,
-			sorted(
-				evaluated_sellers,
-				key = lambda _evaluated_seller: _evaluated_seller.value,
-				reverse = True,
-			),
+		timer.update('concluded sellers constructed')
+
+			# worker_pool.map(
+			# 	self._prod_value,
+			# 	self._concluded_sellers,
+			# )
+
+		self._concluded_sellers.sort(
+			key = lambda s: s.value,
+			reverse = True,
 		)
 
+		timer.update('sellers sorted')
 
-class EvaluationPersistor(object):
-
-	_EVALUATION_PATH = os.path.join(
-		paths.APP_DATA_DIR,
-		'evaluations',
-	)
-
-	def __init__(self, db: CardDatabase):
-		self._db = db
-		self._strategy = PickleStrategy(db)
-
-		if not os.path.exists(self._EVALUATION_PATH):
-			os.makedirs(self._EVALUATION_PATH)
-
-	def save(self, evaluated_sellers: EvaluatedSellers, name: str) -> None:
-		with open(os.path.join(self._EVALUATION_PATH, name), 'wb') as f:
-			f.write(
-				self._strategy.serialize(evaluated_sellers)
-			)
-
-	def load(self, name: str) -> EvaluatedSellers:
-		with open(os.path.join(self._EVALUATION_PATH, name), 'rb') as f:
-			return self._strategy.deserialize(
-				EvaluatedSellers,
-				f.read(),
-			)
+		return self

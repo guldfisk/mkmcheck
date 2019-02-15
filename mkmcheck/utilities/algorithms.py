@@ -12,6 +12,7 @@ def fill_sack(
 	values: t.Sequence[int],
 	items: t.Sequence[T],
 ) -> t.Tuple[int, t.List[T]]:
+
 	n = len(weights)
 
 	matrix = np.zeros((n + 1, capacity + 1), dtype=int)

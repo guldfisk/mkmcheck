@@ -8,19 +8,20 @@ import hmac
 import base64
 import hashlib
 import requests
+import datetime
+import ast
 
 import configparser as cfg
 from promise import Promise
 from concurrent.futures import ThreadPoolExecutor, Executor
 
 from mtgorp.db.database import CardDatabase
-from mtgorp.models.persistent.expansion import Expansion
-from mtgorp.models.persistent.cardboard import Cardboard
 
 from mkmcheck import paths
-from mkmcheck.market.model import Article, Seller, Market
-from mkmcheck.values.values import Condition
-from mkmcheck.market.cache import Cacher
+from mkmcheck.model.models import Article, Seller, Market, WishList, RequestCache
+from mkmcheck.values.values import Condition, Language
+
+from mkmcheck import ScopedSession
 
 
 class Requester(object):
@@ -28,7 +29,7 @@ class Requester(object):
 	CONFIG = cfg.ConfigParser()
 	CONFIG.read(paths.CONFIG_PATH)
 
-	KEYS = CONFIG['Oliver']
+	KEYS = CONFIG['CURRENT']
 
 	APP_TOKEN = KEYS['appToken']
 	APP_SECRET = KEYS['appSecret']
@@ -50,8 +51,6 @@ class Requester(object):
 	]
 
 	CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
-
-	CACHER = Cacher()
 
 	@classmethod
 	def _get_nonce(cls, length: int = 13) -> str:
@@ -102,17 +101,10 @@ class Requester(object):
 
 		return response.json()
 
-	@staticmethod
-	@CACHER
-	def cached_request(resource: str) -> t.Any:
-		return Requester.api_request(resource)
-
-	@classmethod
-	def clear_cache(cls) -> None:
-		cls.CACHER.clear()
-
 
 class MarketFetcher(object):
+
+	_MKM_NAMEIFYER_PATTERN = re.compile('[^a-z]', flags=re.IGNORECASE)
 
 	def __init__(self, db: CardDatabase, executor: t.Optional[Executor] = None):
 		self._db = CardDatabase
@@ -120,58 +112,81 @@ class MarketFetcher(object):
 
 		self._expansion_name_map = {
 			expansion.name if expansion.mkm_name is None else expansion.mkm_name:
-				expansion
+				expansion.code
 			for expansion in
 			db.expansions.values()
 		}
 
+		self._start_time = datetime.datetime.utcnow()
+		self._max_cache_age = datetime.timedelta(days=1)
+
 	@classmethod
-	def _cardboard_to_mkm_name(cls, cardboard: Cardboard) -> str:
-		return re.sub('[^a-z]', '', cardboard.name, flags=re.IGNORECASE)
+	def _cardboard_name_to_mkm_name(cls, cardboard_name: str) -> str:
+		return cls._MKM_NAMEIFYER_PATTERN.sub('', cardboard_name)
+
+	def _cached_request(self, resource: str) -> t.Any:
+		session = ScopedSession()
+		cache = (
+			session
+				.query(RequestCache)
+				.filter(RequestCache.request == resource)
+				.one_or_none()
+		) #type: t.Optional[RequestCache]
+
+		if cache is None or self._start_time - cache.time_stamp > self._max_cache_age:
+			cache = RequestCache(
+				request = resource,
+				response = Requester.api_request(resource),
+			)
+			session.merge(cache)
+			session.commit()
+			return cache.response
+
+		return ast.literal_eval(cache.response)
 
 	def _get_printing_products(
 		self,
-		cardboard: Cardboard,
-	) -> t.Iterable[t.Tuple[Cardboard, t.Optional[Expansion], t.Dict]]:
+		cardboard_name: str,
+	) -> t.Iterable[t.Tuple[str, str, t.Dict[str, t.Any]]]:
 		for product in (
-			Requester.cached_request(
-				f'products/{self._cardboard_to_mkm_name(cardboard)}/1/1/1'
+			self._cached_request(
+				f'products/{self._cardboard_name_to_mkm_name(cardboard_name)}/1/1/1'
 			)['product']
 		):
 			expansion_name = product['expansion']
 			if not expansion_name[:3] == 'WCD':
-				yield cardboard, self._expansion_name_map.get(expansion_name), product
+				yield cardboard_name, expansion_name, product
 
-	@classmethod
 	def _get_articles(
-		cls,
-		cardboard: Cardboard,
-		expansion: t.Optional[Expansion],
+		self,
+		cardboard_name: str,
+		expansion_code: str,
 		printing_product: t.Dict,
-	) -> t.Iterable[t.Dict]:
-		response = Requester.cached_request(f'articles/{printing_product["idProduct"]}')
+	) -> t.Iterable[t.Dict[str, t.Any]]:
+		response = self._cached_request(f'articles/{printing_product["idProduct"]}')
 		for article in response['article']:
-			article['cardboard'] = cardboard
-			article['expansion'] = expansion
+			article['cardboard_name'] = cardboard_name
+			article['expansion_code'] = self._expansion_name_map.get(expansion_code)
 			yield article
 
 	@classmethod
-	def _article(cls, d: t.Dict) -> Article:
+	def _article(cls, d: t.Dict[str, t.Any]) -> Article:
 		return Article(
-			cardboard = d['cardboard'],
+			cardboard_name = d['cardboard_name'],
 			price = d['price'],
+			amount = d['count'],
+			expansion_code = d['expansion_code'],
 			condition = Condition(d['condition']),
-			foil = d['isFoil'],
-			signed = d['isSigned'],
-			altered = d['isAltered'],
-			english = d['language']['idLanguage'] == 1,
-			playset = d['isPlayset'],
-			expansion = d['expansion'],
-			count = d['count'],
+			is_foil = d['isFoil'],
+			is_signed = d['isSigned'],
+			is_altered = d['isAltered'],
+			language = Language(d['language']['idLanguage']),
+			is_playset = d['isPlayset'],
 		)
 
-	def fetch(self, cardboards: t.Iterable[Cardboard], *, clear_cache_when_done: bool = True) -> Market:
-		cardboards = list(cardboards)
+	def fetch(self, wish_list: WishList) -> Market:
+
+		unique_cardboard_names = set(wish_list.cardboard_names)
 
 		printing_product_sets = Promise.all(
 			[
@@ -182,9 +197,15 @@ class MarketFetcher(object):
 					)
 				)
 				for cardboard in
-				cardboards
+				unique_cardboard_names
 			]
-		).get()
+		).get() #type: t.List[t.List[t.Tuple[str, str, t.Dict[str, t.Any]]]]
+
+		# printing_product_sets = [
+		# 	list(self._get_printing_products(cardboard))
+		# 	for cardboard in
+		# 	unique_cardboard_names
+		# ] #type: t.List[t.List[t.Tuple[str, str, t.Dict[str, t.Any]]]]
 
 		article_sets = Promise.all(
 			[
@@ -201,6 +222,14 @@ class MarketFetcher(object):
 			]
 		).get()
 
+		# article_sets = [
+		# 	list(self._get_articles(*printing_product))
+		# 	for printing_product_set in
+		# 	printing_product_sets
+		# 	for printing_product in
+		# 	printing_product_set
+		# ]
+
 		sellers = {} #type: t.Dict[str, t.List[Article]]
 
 		for article in (article for article_set in article_sets for article in article_set):
@@ -211,9 +240,16 @@ class MarketFetcher(object):
 			except KeyError:
 				sellers[article['seller']['username']] = [_article]
 
-		_sellers = (Seller(name, articles) for name, articles in sellers.items())
+		_sellers = list(
+			Seller(
+				name = name,
+				articles = articles,
+			)
+			for name, articles in
+			sellers.items()
+		)
 
-		if clear_cache_when_done:
-			Requester.clear_cache()
-
-		return Market(_sellers, cardboards)
+		return Market(
+			sellers = _sellers,
+			wish_list = wish_list,
+		)

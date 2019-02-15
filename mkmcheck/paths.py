@@ -23,3 +23,13 @@ CONFIG_PATH = os.path.join(
 	SECRETS_PATH,
 	'mkmapikeys.cfg',
 )
+
+DATABASE_CONFIG_PATH = os.path.join(
+	SECRETS_PATH,
+	'database.cfg',
+)
+
+VALUES_CONFIG_PATH = os.path.join(
+	SECRETS_PATH,
+	'values.cfg',
+)

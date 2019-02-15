@@ -1,0 +1,5 @@
+
+
+
+class WishParseException(Exception):
+	pass
