@@ -41,7 +41,7 @@ class StandardEvaluationStrategy(EvaluationStrategy):
 
 	@classmethod
 	def _get_weight_exponent(cls) -> float:
-		return 1.9
+		return 2.2
 
 	@classmethod
 	def _condition_reduction(cls, condition: Condition) -> float:
@@ -50,14 +50,14 @@ class StandardEvaluationStrategy(EvaluationStrategy):
 	@classmethod
 	def _absolute_price_reduction(cls, price: float) -> float:
 		try:
-			return 1 / (1 + math.e ** (.2 * (price - 10) ) )
+			return 1 / (1 + math.e ** (.7 * (price - 4) ) )
 		except OverflowError:
 			return 0.
 
 	@classmethod
 	def _relative_price_multiplier(cls, price: float, reasonable_price: float) -> float:
 		try:
-			return 1 / ( 1 + math.e ** ( 5 * ( ( price / reasonable_price ) - 1.5 ) ) )
+			return 1 / ( 1 + math.e ** ( price - reasonable_price ) )
 		except OverflowError:
 			return 0.
 
@@ -379,12 +379,6 @@ class Evaluator(object):
 			)
 		)
 
-	def _create_concluded_seller(self, seller) -> ConcludedSeller:
-		return ConcludedSeller(seller, self)
-
-	def _prod_value(self, concluded_seller: ConcludedSeller) -> float:
-		return concluded_seller.value
-
 	def evaluate(self) -> 'Evaluator':
 
 		print('evaluating')
@@ -394,11 +388,6 @@ class Evaluator(object):
 
 		timer.update('price map initialized')
 
-		# with Pool(4) as worker_pool:
-		# 	self._concluded_sellers = worker_pool.map(
-		# 		self._create_concluded_seller,
-		# 		self._market.sellers,
-		# 	)
 		self._concluded_sellers = [
 			ConcludedSeller(
 				seller = seller,
@@ -408,11 +397,6 @@ class Evaluator(object):
 		]
 
 		timer.update('concluded sellers constructed')
-
-			# worker_pool.map(
-			# 	self._prod_value,
-			# 	self._concluded_sellers,
-			# )
 
 		self._concluded_sellers.sort(
 			key = lambda s: s.value,
