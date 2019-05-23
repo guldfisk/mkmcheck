@@ -57,7 +57,7 @@ class StandardEvaluationStrategy(EvaluationStrategy):
 	@classmethod
 	def _relative_price_multiplier(cls, price: float, reasonable_price: float) -> float:
 		try:
-			return 1 / ( 1 + math.e ** ( price - reasonable_price ) )
+			return 1 / ( 1 + math.e ** ( .8 * (price - reasonable_price - 1.5)) )
 		except OverflowError:
 			return 0.
 
@@ -206,12 +206,16 @@ class ConcludedWish(object):
 		return self._wish
 
 	@property
-	def fulfilled(self):
+	def fulfilled(self) -> bool:
 		return all(
 			concluded_cardboard_wish.fulfilled
 			for concluded_cardboard_wish in
 			self._concluded_cardboard_wishes
 		)
+
+	@property
+	def include(self) -> bool:
+		return self.fulfilled or self.wish.include_partially_fulfilled
 
 	@property
 	def value(self) -> float:
@@ -264,6 +268,10 @@ class ConcludedSeller(object):
 		self._sorted = False
 
 	@property
+	def concluded_wishes(self) -> t.List[ConcludedWish]:
+		return self._concluded_wishes
+
+	@property
 	def sorted_concluded_wishes(self) -> t.List[ConcludedWish]:
 		if not self._sorted:
 			self._concluded_wishes.sort(
@@ -271,6 +279,7 @@ class ConcludedSeller(object):
 				reverse = True,
 			)
 			self._sorted = True
+
 		return self._concluded_wishes
 
 	@property

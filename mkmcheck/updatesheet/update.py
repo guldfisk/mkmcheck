@@ -41,10 +41,7 @@ def _seller_to_grid(
 		)
 		for concluded_wish in
 		concluded_wishes
-		if (
-			concluded_wish.fulfilled
-			or concluded_wish.wish.include_partially_fulfilled
-		)
+		if concluded_wish.include
 	]
 
 
@@ -157,9 +154,10 @@ class SheetsUpdater(object):
 		for concluded_seller in self._evaluator.concluded_sellers[:TOP_SELLERS_AMOUNT]:
 
 			wish_map = {
-				concluded_wish.wish: concluded_wish
+				concluded_wish.wish:
+					concluded_wish
 				for concluded_wish in
-				concluded_seller.sorted_concluded_wishes
+				concluded_seller.concluded_wishes
 			}  # type: t.Dict[Wish, ConcludedWish]
 
 			column = [concluded_seller.seller.name, '']
@@ -175,7 +173,7 @@ class SheetsUpdater(object):
 					column.append('not in wish_list')
 					continue
 
-				if not concluded_wish.fulfilled:
+				if not concluded_wish.include:
 					column.append('')
 					continue
 

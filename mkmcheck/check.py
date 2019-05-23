@@ -105,7 +105,7 @@ def check(
 def _check():
 	check(
 		recheck_wish_list = True,
-		recheck_market = False,
+		recheck_market = True,
 		update_output_sheet = True,
 		update_knapsack_sheet = True,
 		update_wish_list_sheet = True,

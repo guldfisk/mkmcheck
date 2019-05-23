@@ -548,7 +548,7 @@ class Market(Base):
 
 	created_date = Column(
 		DateTime,
-		default = datetime.datetime.utcnow(),
+		default = datetime.datetime.utcnow,
 	)
 
 	sellers = relationship(
