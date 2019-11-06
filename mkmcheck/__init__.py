@@ -1,5 +1,3 @@
-
-
 from configparser import ConfigParser
 
 from sqlalchemy import create_engine
@@ -37,12 +35,15 @@ TOP_SELLERS_AMOUNT = int(_values['top_sellers_amount'])
 KNAPSACK_SEARCH_SPACE = int(_values['knapsack_search_space'])
 KNAPSACK_CAPACITY = int(_values['knapsack_capacity'])
 
-engine = create_engine(
-	f'{_keys["dialect"]}+{_keys["driver"]}://{_keys["username"]}:{_keys["password"]}@{_keys["host"]}/{_keys["database"]}?charset=utf8',
-	pool_size = 32,
-	echo = False,
-)
+print(    f'{_keys["dialect"]}+{_keys["driver"]}://'
+    f'{_keys["username"]}:{_keys["password"]}@{_keys["host"]}/{_keys["database"]}?charset=utf8',)
 
+engine = create_engine(
+    f'{_keys["dialect"]}+{_keys["driver"]}://'
+    f'{_keys["username"]}:{_keys["password"]}@{_keys["host"]}/{_keys["database"]}?charset=utf8',
+    pool_size = 32,
+    echo = False,
+)
 
 session_factory = sessionmaker(bind=engine)
 ScopedSession = scoped_session(session_factory)

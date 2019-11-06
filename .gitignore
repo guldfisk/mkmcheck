@@ -1,10 +1,4 @@
 .idea/
-mkmcheck/resources/
-/mkmcheck/test.py
 /.gitignore
-mkmcheck/utilities/__pycache__/
-mkmcheck/model/__pycache__/
-mkmcheck/wishlist/__pycache__/exceptions.cpython-36.pyc
-mkmcheck/wishlist/__pycache__/parse.cpython-36.pyc
-mkmcheck/wishlist/__pycache__/visitor.cpython-36.pyc
-mkmcheck/wishlist/gen/__pycache__/
+/test.py
+__pycache__

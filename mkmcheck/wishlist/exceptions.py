@@ -2,4 +2,4 @@
 
 
 class WishParseException(Exception):
-	pass
+    pass
