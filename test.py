@@ -1,19 +1,17 @@
+import json
+
+from mkmcheck.model import models
 from mkmcheck.wishload.fetch import WishListFetcher
 from mtgorp.db.load import Loader
 
 import mkmcheck
 
 def test():
+    session = mkmcheck.ScopedSession()
 
-    wish_list_fetcher = WishListFetcher(
-        db = mkmcheck.db,
-        spreadsheet_id = mkmcheck.SHEET_ID,
-        sheet_name = mkmcheck.INPUT_SHEET_NAME,
-    )
+    wish_list = session.query(models.WishList).order_by(models.WishList.created_date.desc()).first()
 
-    fetched_wish_list = wish_list_fetcher.fetch()
-
-    print(fetched_wish_list)
+    print(json.dumps(wish_list.to_dict()))
 
 
 if __name__ == '__main__':

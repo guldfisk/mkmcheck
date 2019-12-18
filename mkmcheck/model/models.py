@@ -5,14 +5,14 @@ import typing as t
 import datetime
 
 from lazy_property import LazyProperty
+from sqlalchemy_serializer import SerializerMixin
+from sqlathanor import declarative_base, Column, relationship
 
 from mtgorp.models.persistent.attributes.borders import Border
 
 from mkmcheck.values.values import Condition, Language
 
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, Enum, Float, DateTime, UnicodeText
-from sqlalchemy.orm import relationship
+from sqlalchemy import Integer, String, Boolean, Enum, Float, DateTime, UnicodeText
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.dialects.mysql.types import MEDIUMTEXT
@@ -45,8 +45,10 @@ class RequestCache(Base):
         )
 
 
-class Requirement(Base):
+class Requirement(Base, SerializerMixin):
     __tablename__ = 'requirements'
+    # serialize_only = ('id', 'requirement_type')
+    serialize_rules = ('-cardboard_wish', 'cardboard_wish_id')
 
     id = Column(Integer, primary_key=True)
 
@@ -76,8 +78,9 @@ class Requirement(Base):
         )
 
 
-class ExpansionCode(Base):
+class ExpansionCode(Base, SerializerMixin):
     __tablename__ = 'expansion_codes'
+    serialize_only = ('id', 'code')
 
     id = Column(Integer, primary_key=True)
 
@@ -301,8 +304,9 @@ class IsSigned(Requirement):
         )
 
 
-class CardboardWish(Base):
+class CardboardWish(Base, SerializerMixin):
     __tablename__ = 'cardboard_wishes'
+    serialize_only = ('id', 'cardboard_name', 'minimum_amount', 'requirements')
 
     id = Column(Integer, primary_key=True)
 
@@ -359,8 +363,9 @@ class CardboardWish(Base):
 
 class Wish(Base):
     __tablename__ = 'wishes'
+    # serialize_only = ('id', 'weight', 'include_partially_fulfilled', 'cardboard_wishes')
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, supports_dict = True)
 
     wish_list_id = Column(
         Integer,
@@ -415,8 +420,9 @@ class Wish(Base):
 
 class WishList(Base):
     __tablename__ = 'wish_lists'
+    # serialize_only = ('id', 'created_date', 'wishes')
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, supports_dict = True)
 
     created_date = Column(
         DateTime,
@@ -427,6 +433,7 @@ class WishList(Base):
         'Wish',
         back_populates = 'wish_list',
         cascade = 'all, delete-orphan',
+        supports_dict = True,
     )
 
     @property
