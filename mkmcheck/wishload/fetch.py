@@ -24,7 +24,11 @@ class WishListFetcher(object):
 
         self._sheet_name = sheet_name
 
-    def fetch_wishes(self, included_suspended: bool = False, collect_errors: bool = True) -> t.Iterable[t.Optional[Wish]]:
+    def fetch_wishes(
+        self,
+        included_suspended: bool = False,
+        collect_errors: bool = True,
+    ) -> t.Iterable[t.Optional[Wish]]:
         exceptions = []
 
         for values in self._sheet_client.read_sheet(

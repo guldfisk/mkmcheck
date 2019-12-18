@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typing as t
 
 import math
@@ -18,7 +20,7 @@ class EvaluationStrategy(ABC):
 
     @classmethod
     @abstractmethod
-    def evaluate_wish_article(cls, article: Article, wish: 'ConcludedWish', reasonable_price: float) -> float:
+    def evaluate_wish_article(cls, article: Article, wish: ConcludedWish, reasonable_price: float) -> float:
         pass
 
     @classmethod
@@ -62,7 +64,7 @@ class StandardEvaluationStrategy(EvaluationStrategy):
             return 0.
 
     @classmethod
-    def evaluate_wish_article(cls, article: Article, wish: 'ConcludedWish', reasonable_price: float) -> float:
+    def evaluate_wish_article(cls, article: Article, wish: ConcludedWish, reasonable_price: float) -> float:
         return (
             wish.wish.weight ** cls._get_weight_exponent()
             * cls._condition_reduction(article.condition)
@@ -80,15 +82,15 @@ class StandardEvaluationStrategy(EvaluationStrategy):
 
 class ConcludedCardboardWish(object):
 
-    def __init__(self, cardboard_wish: CardboardWish, concluded_wish: 'ConcludedWish', evaluator: 'Evaluator'):
+    def __init__(self, cardboard_wish: CardboardWish, concluded_wish: ConcludedWish, evaluator: Evaluator):
         self._cardboard_wish = cardboard_wish
         self._concluded_wish = concluded_wish
         self._evaluator = evaluator
 
-        self._articles = [] #type: t.List[t.Tuple[Article, int]]
+        self._articles: t.List[t.Tuple[Article, int]] = []
         self._initialize_articles()
 
-        self._value = None #type: t.Optional[float]
+        self._value: t.Optional[float] = None
 
     def _initialize_articles(self) -> None:
         valid_articles = sorted(
@@ -176,15 +178,15 @@ class ConcludedCardboardWish(object):
 
 class ConcludedWish(object):
 
-    def __init__(self, wish: Wish, seller: Seller, evaluator: 'Evaluator'):
+    def __init__(self, wish: Wish, seller: Seller, evaluator: Evaluator):
         self._wish = wish
         self._seller = seller
         self._evaluator = evaluator
 
-        self._concluded_cardboard_wishes = [] #type: t.List[ConcludedCardboardWish]
+        self._concluded_cardboard_wishes: t.List[ConcludedCardboardWish] = []
         self._initialize_concluded_cardboard_wishes()
 
-        self._value = None #type: t.Optional[float]
+        self._value: t.Optional[float] = None
 
     def _initialize_concluded_cardboard_wishes(self):
         self._concluded_cardboard_wishes = [
@@ -250,7 +252,7 @@ class ConcludedWish(object):
 
 class ConcludedSeller(object):
 
-    def __init__(self, seller: Seller, evaluator: 'Evaluator'):
+    def __init__(self, seller: Seller, evaluator: Evaluator):
         self._seller = seller
         self._evaluator = evaluator
 
@@ -264,7 +266,7 @@ class ConcludedSeller(object):
             self._evaluator.wish_list.wishes
         ]
 
-        self._value = None #type: t.Optional[float]
+        self._value: t.Optional[float] = None
         self._sorted = False
 
     @property
@@ -332,10 +334,10 @@ class Evaluator(object):
         self._evaluation_strategy = evaluation_strategy
         self._wish_list = self._market.wish_list if wish_list is None else wish_list
 
-        self._prices_map = {} #type: t.Dict[str, t.List[float]]
-        self._reasonable_price_map = {} #type: t.Dict[str, float]
+        self._prices_map: t.Dict[str, t.List[float]] = {}
+        self._reasonable_price_map: t.Dict[str, float] = {}
 
-        self._concluded_sellers = [] #type: t.List[ConcludedSeller]
+        self._concluded_sellers: t.List[ConcludedSeller] = []
 
     @property
     def evaluation_strategy(self) -> t.Type[EvaluationStrategy]:
@@ -388,7 +390,7 @@ class Evaluator(object):
             )
         )
 
-    def evaluate(self) -> 'Evaluator':
+    def evaluate(self) -> Evaluator:
 
         print('evaluating')
         timer = Timer()

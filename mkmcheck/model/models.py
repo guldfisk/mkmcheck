@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typing as t
 
 import datetime
@@ -27,7 +29,7 @@ _UT.with_variant(MEDIUMTEXT, 'mysql')
 class RequestCache(Base):
     __tablename__ = 'request_cache'
 
-    request = Column(String(128), primary_key=True)
+    request = Column(String(127), primary_key=True)
     response = Column(_UT)
 
     time_stamp = Column(
@@ -58,14 +60,14 @@ class Requirement(Base):
         back_populates = 'requirements',
     )
 
-    requirement_type = Column(String(50))
+    requirement_type = Column(String(31))
 
     __mapper_args__ = {
         'polymorphic_on': requirement_type,
         'polymorphic_identity': 'requirement',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         pass
 
     def __repr__(self):
@@ -89,7 +91,7 @@ class ExpansionCode(Base):
         back_populates = '_expansion_codes'
     )
 
-    code = Column(String(10))
+    code = Column(String(7))
 
     def __eq__(self, other):
         return (
@@ -103,11 +105,11 @@ class ExpansionCode(Base):
 
 class FromExpansions(Requirement):
 
-    _expansion_codes = relationship(
+    _expansion_codes: t.List[ExpansionCode] = relationship(
         'ExpansionCode',
         back_populates = 'from_expansions',
         cascade = 'all, delete-orphan',
-    ) #type: t.List[ExpansionCode]
+    )
 
     @property
     def expansion_codes(self) -> t.List[str]:
@@ -117,7 +119,7 @@ class FromExpansions(Requirement):
         'polymorphic_identity': 'from_expansions',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         return article.expansion_code in self.expansion_codes
 
     def __eq__(self, other):
@@ -144,7 +146,7 @@ class IsBorder(Requirement):
         'polymorphic_identity': 'is_border',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         expansion = db.expansions.get(article.expansion_code, None)
         return expansion is not None and expansion.border is not None and expansion.border == self.border
 
@@ -172,7 +174,7 @@ class IsMinimumCondition(Requirement):
         'polymorphic_identity': 'is_minimum_condition',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         return article.condition >= self.condition
 
     def __eq__(self, other):
@@ -199,7 +201,7 @@ class IsLanguage(Requirement):
         'polymorphic_identity': 'is_language',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         return article.language == self.language
 
     def __eq__(self, other):
@@ -226,7 +228,7 @@ class IsFoil(Requirement):
         'polymorphic_identity': 'is_foil',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         return article.is_foil == self.is_foil
 
     def __eq__(self, other):
@@ -253,7 +255,7 @@ class IsAltered(Requirement):
         'polymorphic_identity': 'is_altered',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         return article.is_altered == self.is_altered
 
     def __eq__(self, other):
@@ -280,7 +282,7 @@ class IsSigned(Requirement):
         'polymorphic_identity': 'is_signed',
     }
 
-    def fulfilled(self, article: 'Article') -> bool:
+    def fulfilled(self, article: Article) -> bool:
         return article.is_signed == self.is_signed
 
     def __eq__(self, other):
@@ -314,14 +316,14 @@ class CardboardWish(Base):
         back_populates = 'cardboard_wishes',
     )
 
-    cardboard_name = Column(String(128))
+    cardboard_name = Column(String(127))
     minimum_amount = Column(Integer)
 
-    requirements = relationship(
+    requirements: t.List[Requirement] = relationship(
         'Requirement',
         back_populates = 'cardboard_wish',
         cascade = 'all, delete-orphan',
-    ) #type: t.List[Requirement]
+    )
 
     def validate_article(self, article: 'Article') -> bool:
         return all(
@@ -373,11 +375,11 @@ class Wish(Base):
     weight = Column(Integer)
     include_partially_fulfilled = Column(Boolean)
 
-    cardboard_wishes = relationship(
+    cardboard_wishes: t.List[CardboardWish] = relationship(
         'CardboardWish',
         back_populates = 'wish',
         cascade = 'all, delete-orphan',
-    ) #type: t.List[CardboardWish]
+    )
 
     @property
     def cardboard_names(self) -> t.Iterable[str]:
@@ -421,11 +423,11 @@ class WishList(Base):
         default = datetime.datetime.utcnow,
     )
 
-    wishes = relationship(
+    wishes: t.List[Wish] = relationship(
         'Wish',
         back_populates = 'wish_list',
         cascade = 'all, delete-orphan',
-    ) #type: t.List[Wish]
+    )
 
     @property
     def cardboard_names(self) -> t.Iterable[str]:
@@ -454,8 +456,8 @@ class Article(Base):
 
     id = Column(Integer, primary_key=True)
 
-    cardboard_name = Column(String(64))
-    expansion_code = Column(String(64))
+    cardboard_name = Column(String(63))
+    expansion_code = Column(String(7))
     price = Column(Float)
     amount = Column(Integer)
     condition = Column(Enum(Condition))
@@ -501,13 +503,13 @@ class Seller(Base):
 
     id = Column(Integer, primary_key=True)
 
-    name = Column(String(50))
+    name = Column(String(63))
 
-    articles = relationship(
+    articles: t.List[Article] = relationship(
         'Article',
         back_populates = 'seller',
         cascade = 'all, delete-orphan',
-    ) #type: t.List[Article]
+    )
 
     market_id = Column(
         Integer,
@@ -521,7 +523,7 @@ class Seller(Base):
 
     @LazyProperty
     def article_map(self) -> t.Dict[str, t.Collection[Article]]:
-        _map = {} #type: t.Dict[str, t.List[Article]]
+        _map: t.Dict[str, t.List[Article]] = {}
 
         for article in self.articles:
             try:
@@ -551,11 +553,11 @@ class Market(Base):
         default = datetime.datetime.utcnow,
     )
 
-    sellers = relationship(
+    sellers: t.List[Seller] = relationship(
         'Seller',
         back_populates = 'market',
         cascade = 'all, delete-orphan',
-    ) #type: t.List[Seller]
+    )
 
     wish_list_id = Column(
         Integer,

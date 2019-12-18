@@ -63,7 +63,6 @@ def check(
 
         timer.update('remote marked persisted')
 
-
     else:
         market = session.query(models.Market).order_by(models.Market.created_date.desc()).first()
 
