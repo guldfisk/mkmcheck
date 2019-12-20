@@ -5,14 +5,14 @@ import typing as t
 import datetime
 
 from lazy_property import LazyProperty
-from sqlalchemy_serializer import SerializerMixin
-from sqlathanor import declarative_base, Column, relationship
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 
 from mtgorp.models.persistent.attributes.borders import Border
 
 from mkmcheck.values.values import Condition, Language
 
-from sqlalchemy import Integer, String, Boolean, Enum, Float, DateTime, UnicodeText
+from sqlalchemy import Integer, String, Boolean, Enum, Float, DateTime, UnicodeText, Column
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.dialects.mysql.types import MEDIUMTEXT
@@ -45,10 +45,8 @@ class RequestCache(Base):
         )
 
 
-class Requirement(Base, SerializerMixin):
+class Requirement(Base):
     __tablename__ = 'requirements'
-    # serialize_only = ('id', 'requirement_type')
-    serialize_rules = ('-cardboard_wish', 'cardboard_wish_id')
 
     id = Column(Integer, primary_key=True)
 
@@ -67,6 +65,7 @@ class Requirement(Base, SerializerMixin):
     __mapper_args__ = {
         'polymorphic_on': requirement_type,
         'polymorphic_identity': 'requirement',
+        'with_polymorphic': '*',
     }
 
     def fulfilled(self, article: Article) -> bool:
@@ -78,7 +77,7 @@ class Requirement(Base, SerializerMixin):
         )
 
 
-class ExpansionCode(Base, SerializerMixin):
+class ExpansionCode(Base):
     __tablename__ = 'expansion_codes'
     serialize_only = ('id', 'code')
 
@@ -304,7 +303,7 @@ class IsSigned(Requirement):
         )
 
 
-class CardboardWish(Base, SerializerMixin):
+class CardboardWish(Base):
     __tablename__ = 'cardboard_wishes'
     serialize_only = ('id', 'cardboard_name', 'minimum_amount', 'requirements')
 
@@ -329,7 +328,7 @@ class CardboardWish(Base, SerializerMixin):
         cascade = 'all, delete-orphan',
     )
 
-    def validate_article(self, article: 'Article') -> bool:
+    def validate_article(self, article: Article) -> bool:
         return all(
             requirement.fulfilled(article)
             for requirement in
@@ -363,9 +362,8 @@ class CardboardWish(Base, SerializerMixin):
 
 class Wish(Base):
     __tablename__ = 'wishes'
-    # serialize_only = ('id', 'weight', 'include_partially_fulfilled', 'cardboard_wishes')
 
-    id = Column(Integer, primary_key=True, supports_dict = True)
+    id = Column(Integer, primary_key=True)
 
     wish_list_id = Column(
         Integer,
@@ -420,9 +418,8 @@ class Wish(Base):
 
 class WishList(Base):
     __tablename__ = 'wish_lists'
-    # serialize_only = ('id', 'created_date', 'wishes')
 
-    id = Column(Integer, primary_key=True, supports_dict = True)
+    id = Column(Integer, primary_key=True)
 
     created_date = Column(
         DateTime,
@@ -433,7 +430,6 @@ class WishList(Base):
         'Wish',
         back_populates = 'wish_list',
         cascade = 'all, delete-orphan',
-        supports_dict = True,
     )
 
     @property

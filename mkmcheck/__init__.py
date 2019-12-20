@@ -35,14 +35,14 @@ TOP_SELLERS_AMOUNT = int(_values['top_sellers_amount'])
 KNAPSACK_SEARCH_SPACE = int(_values['knapsack_search_space'])
 KNAPSACK_CAPACITY = int(_values['knapsack_capacity'])
 
-print(
-    f'{_keys["dialect"]}+{_keys["driver"]}://'
-    f'{_keys["username"]}:{_keys["password"]}@{_keys["host"]}/{_keys["database"]}?charset=utf8'
-)
 
+uri = '{dialect}+{driver}://{username}:{password}@{host}/{database}?charset=utf8'.format(**_keys)
+
+print(uri)
 engine = create_engine(
-    f'{_keys["dialect"]}+{_keys["driver"]}://'
-    f'{_keys["username"]}:{_keys["password"]}@{_keys["host"]}/{_keys["database"]}?charset=utf8',
+    # f'{_keys["dialect"]}+{_keys["driver"]}://'
+    # f'{_keys["username"]}:{_keys["password"]}@{_keys["host"]}/{_keys["database"]}?charset=utf8',
+    uri,
     pool_size = 32,
     echo = False,
 )

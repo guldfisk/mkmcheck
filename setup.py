@@ -30,5 +30,9 @@ setup(
         'numpy',
         'promise',
         'sqlalchemy',
+        'marshmallow',
+        'marshmallow_sqlalchemy',
+        'marshmallow_enum',
+        'marshmallow_oneofschema @ https://github.com/guldfisk/marshmallow_oneofschema/tarball/master#egg=marshmallow_oneofschema-1.0',
     ]
 )
